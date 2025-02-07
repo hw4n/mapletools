@@ -1,4 +1,3 @@
-import Date from "../components/Date";
 import Symbol from "../components/Symbol";
 
 export default function Home() {

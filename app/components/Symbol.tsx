@@ -8,8 +8,8 @@ function Symbol() {
     const [arcDailyToday, setArcDailyToday] = useState(true);
     const [arcWeekly, setArcWeekly] = useState(true);
     const [arcWeeklyThisWeek, setArcWeeklyThisWeek] = useState(true);
-    const [arcExtra, setArcExtra] = useState(false);
-    const [arcExtraAmount, setArcExtraAmount] = useState(50);
+    // const [arcExtra, setArcExtra] = useState(false);
+    // const [arcExtraAmount, setArcExtraAmount] = useState(50);
     const [arcInput, setArcInput] = useState([
         [-1],
         [1, 0],
@@ -48,7 +48,7 @@ function Symbol() {
             newRemaining[i][0] = 0;
             newRemaining[i][1] = 0;
             for (let arclevel = arcInput[i][0]; arclevel < 20; arclevel++) {
-                let growth = arclevel ** 2 + 11;
+                const growth = arclevel ** 2 + 11;
                 newRemaining[i][0] += growth;
                 newRemaining[i][1] +=
                     Math.floor(growth * 2 * (i + 3 + arclevel * 0.05)) * 10000;
@@ -84,7 +84,7 @@ function Symbol() {
     }, [arcInput]);
 
     useEffect(() => {
-        let newArcMaxCost = [0, 0];
+        const newArcMaxCost = [0, 0];
 
         // Find maximum days to max and total cost
         for (let i = 1; i <= 6; i++) {
@@ -156,13 +156,14 @@ function Symbol() {
                     <span className="mx-2">completed this week</span>
                 </div>
                 <div className="mt-4">
-                    <input type="checkbox" id="arcextra" />
+                    <input type="checkbox" id="arcextra" disabled />
                     <span className="mx-2">Normalize with</span>
                     <input
                         type="number"
                         defaultValue={50}
                         className="text-gray-800 w-11 text-center"
                         id="arcextraamount"
+                        disabled
                     />
                     <span className="mx-2">extra symbol(s)</span>
                 </div>
