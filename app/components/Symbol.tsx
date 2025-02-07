@@ -28,7 +28,7 @@ function Symbol() {
         [0, 0],
         [0, 0],
     ]);
-    const [arcMaxCost, setArcMaxCost] = useState([0, 0]);
+    const [arcMaxCost, setArcMaxCost] = useState([-1, 0]);
 
     function setArcLevel(i: number, level: number) {
         const newArcInput = [...arcInput];
@@ -59,6 +59,10 @@ function Symbol() {
     }
 
     function calculateDaysToMax(remaining: number) {
+        if (!arcDaily && !arcWeekly) {
+            return -1;
+        }
+
         if (!arcDailyToday) {
             remaining -= arcPerDay;
         }
@@ -70,10 +74,8 @@ function Symbol() {
 
         while (remaining > 0) {
             days++;
-            remaining -= arcPerDay;
-            if (days % 7 === 0) {
-                remaining -= 45;
-            }
+            if (arcDaily) remaining -= arcPerDay;
+            if (arcWeekly && days % 7 === 0) remaining -= 45;
         }
 
         return days;
@@ -84,7 +86,7 @@ function Symbol() {
     }, [arcInput]);
 
     useEffect(() => {
-        const newArcMaxCost = [0, 0];
+        const newArcMaxCost = [-1, 0];
 
         // Find maximum days to max and total cost
         for (let i = 1; i <= 6; i++) {
@@ -97,7 +99,14 @@ function Symbol() {
             newArcMaxCost[1] += arcRemaining[i][1];
         }
         setArcMaxCost(newArcMaxCost);
-    }, [arcRemaining]);
+    }, [
+        arcRemaining,
+        arcDaily,
+        arcPerDay,
+        arcDailyToday,
+        arcWeekly,
+        arcWeeklyThisWeek,
+    ]);
 
     return (
         <div className="p-3">
@@ -231,16 +240,23 @@ function Symbol() {
                             mesos
                         </div>
                     ))}
-                    <div>
-                        The max upgrade will finish in
-                        <span className="text-primary"> {arcMaxCost[0]} </span>
-                        days and cost
-                        <span className="text-primary">
-                            {" "}
-                            {arcMaxCost[1].toLocaleString("en-US")}
-                        </span>{" "}
-                        mesos
-                    </div>
+                    {arcMaxCost[0] === -1 ? (
+                        <div>Cannot upgrade any symbol</div>
+                    ) : (
+                        <div>
+                            The max upgrade will finish in
+                            <span className="text-primary">
+                                {" "}
+                                {arcMaxCost[0]}{" "}
+                            </span>
+                            days and cost
+                            <span className="text-primary">
+                                {" "}
+                                {arcMaxCost[1].toLocaleString("en-US")}
+                            </span>{" "}
+                            mesos
+                        </div>
+                    )}
                 </div>
             </div>
 
