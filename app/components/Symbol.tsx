@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 
 interface SymbolProps {
     name: string;
@@ -31,10 +31,24 @@ interface SymbolInfo {
     symbolMaxCost: number[]; // [days, cost]
 }
 
-const symbolReducer = (
-    state: SymbolInfo,
-    action: { type: string; payload: any }
-) => {
+type SymbolAction =
+    | {
+          type:
+              | "setSymbolDaily"
+              | "setSymbolDailyToday"
+              | "setSymbolWeekly"
+              | "setSymbolWeeklyThisWeek"
+              | "setSymbolExtra";
+          payload: boolean;
+      }
+    | { type: "setSymbolPerDay" | "setSymbolExtraInput"; payload: number }
+    | { type: "setSymbolLevel"; payload: { i: number; level: number } }
+    | { type: "setSymbolEquip"; payload: { i: number; equip: number } }
+    | { type: "setSymbolRemaining"; payload: number[][] }
+    | { type: "setSymbolMaxCost"; payload: number[] }
+    | { type: "readFromLocalStorage"; payload: SymbolInfo };
+
+const symbolReducer = (state: SymbolInfo, action: SymbolAction) => {
     switch (action.type) {
         case "setSymbolDaily":
             return { ...state, symbolDaily: action.payload };
@@ -46,10 +60,6 @@ const symbolReducer = (
             return { ...state, symbolWeekly: action.payload };
         case "setSymbolWeeklyThisWeek":
             return { ...state, symbolWeeklyThisWeek: action.payload };
-        case "setSymbolInput":
-            return { ...state, symbolInput: action.payload };
-        case "setSymbolRemaining":
-            return { ...state, symbolRemaining: action.payload };
         case "setSymbolMaxCost":
             return { ...state, symbolMaxCost: action.payload };
         case "setSymbolLevel":
@@ -114,7 +124,24 @@ function Symbol({
             }
             newRemaining[i][0] -= symbolInput[i][1];
         }
+
+        const newSymbolMaxCost = [-1, 0];
+
+        // Find maximum days to max and total cost
+        for (let i = 1; i <= 6; i++) {
+            if (newRemaining[i][0] > newSymbolMaxCost[0]) {
+                newSymbolMaxCost[0] = Math.max(
+                    i === 1 && symbolShortName === "sac"
+                        ? calculateDaysToMax(newRemaining[i][0], 10)
+                        : calculateDaysToMax(newRemaining[i][0]),
+                    newSymbolMaxCost[0]
+                );
+            }
+            newSymbolMaxCost[1] += newRemaining[i][1];
+        }
+
         dispatch({ type: "setSymbolRemaining", payload: newRemaining });
+        dispatch({ type: "setSymbolMaxCost", payload: newSymbolMaxCost });
     }
 
     function calculateDaysToMax(remaining: number, additionalPerDay?: number) {
@@ -169,26 +196,6 @@ function Symbol({
             JSON.stringify(symbolInfo)
         );
     }, [symbolInfo.symbolInput]);
-
-    useEffect(() => {
-        const { symbolRemaining } = symbolInfo;
-
-        const newSymbolMaxCost = [-1, 0];
-
-        // Find maximum days to max and total cost
-        for (let i = 1; i <= 6; i++) {
-            if (symbolRemaining[i][0] > newSymbolMaxCost[0]) {
-                newSymbolMaxCost[0] = Math.max(
-                    i === 1 && symbolShortName === "sac"
-                        ? calculateDaysToMax(symbolRemaining[i][0], 10)
-                        : calculateDaysToMax(symbolRemaining[i][0]),
-                    newSymbolMaxCost[0]
-                );
-            }
-            newSymbolMaxCost[1] += symbolRemaining[i][1];
-        }
-        dispatch({ type: "setSymbolMaxCost", payload: newSymbolMaxCost });
-    }, [symbolInfo.symbolRemaining]);
 
     return (
         <div className="p-3">
@@ -334,45 +341,37 @@ function Symbol({
                         {comment}
                     </span>
                     {symbolInfo.symbolMaxCost[0] !== -1
-                        ? symbolInfo.symbolRemaining
-                              .slice(1)
-                              .map((cost: any, i: any) =>
-                                  cost[0] > 0 ? (
-                                      <div key={i}>
-                                          <img
-                                              src={`/image/${symbolShortName}${
-                                                  i + 1
-                                              }.webp`}
-                                              className="w-9 h-9 inline-block mr-1"
-                                          />
-                                          will finish in
-                                          <span className="text-primary">
-                                              {" "}
-                                              {i === 0 &&
-                                              symbolShortName === "sac"
-                                                  ? calculateDaysToMax(
-                                                        cost[0],
-                                                        10
-                                                    )
-                                                  : calculateDaysToMax(
-                                                        cost[0]
-                                                    )}{" "}
-                                          </span>
-                                          days and cost
-                                          <span className="text-primary">
-                                              {" "}
-                                              {cost[1].toLocaleString(
-                                                  "en-US"
-                                              )}{" "}
-                                          </span>
-                                          mesos
-                                      </div>
-                                  ) : null
-                              )
+                        ? symbolInfo.symbolRemaining.slice(1).map((cost, i) =>
+                              cost[0] > 0 ? (
+                                  <div key={i}>
+                                      <img
+                                          src={`/image/${symbolShortName}${
+                                              i + 1
+                                          }.webp`}
+                                          className="w-9 h-9 inline-block mr-1"
+                                      />
+                                      will finish in
+                                      <span className="text-primary">
+                                          {" "}
+                                          {i === 0 && symbolShortName === "sac"
+                                              ? calculateDaysToMax(cost[0], 10)
+                                              : calculateDaysToMax(
+                                                    cost[0]
+                                                )}{" "}
+                                      </span>
+                                      days and cost
+                                      <span className="text-primary">
+                                          {" "}
+                                          {cost[1].toLocaleString("en-US")}{" "}
+                                      </span>
+                                      mesos
+                                  </div>
+                              ) : null
+                          )
                         : null}
                     {symbolInfo.symbolMaxCost[1] === 0 ? (
                         <div className="text-primary">Upgrade complete!</div>
-                    ) : symbolInfo.symbolMaxCost[0] === -1 ? (
+                    ) : !symbolInfo.symbolDaily && !symbolInfo.symbolWeekly ? (
                         <div>Cannot upgrade any symbol</div>
                     ) : (
                         <div>
