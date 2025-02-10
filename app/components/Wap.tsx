@@ -116,6 +116,17 @@ const Grind = () => {
         localStorage.setItem("grindInfo", JSON.stringify(grindInfo));
     }, [grindInfo]);
 
+    function calculateFragment(ed: number, idr: number) {
+        return Math.floor(ed * 0.000425 * (1 + Math.log(1 + idr / 100)));
+    }
+
+    function generateFragmentResultString(ed: number, idr: number) {
+        const result = calculateFragment(ed, idr);
+        return `${result} ± 5% (${Math.floor(result * 0.95)} ~ ${Math.ceil(
+            result * 1.05
+        )})`;
+    }
+
     return (
         <InfoBlock src="/image/exp.png" title="grinding">
             <div className="mb-2">
@@ -306,14 +317,9 @@ const Grind = () => {
             <IconLine src="/image/frag.webp">
                 <span className="text-primary ml-1">
                     {grindInfo.itemDropRate > 0
-                        ? Math.ceil(
-                              (grindInfo.swap / 2) *
-                                  grindInfo.enemiesPerHour *
-                                  0.000425 *
-                                  (1 +
-                                      Math.log(
-                                          1 + grindInfo.itemDropRate / 100
-                                      ))
+                        ? generateFragmentResultString(
+                              (grindInfo.swap / 2) * grindInfo.enemiesPerHour,
+                              grindInfo.itemDropRate
                           )
                         : "Item drop rate not set"}
                 </span>
