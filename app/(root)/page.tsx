@@ -5,11 +5,11 @@ import Symbol from "../components/Symbol";
 
 export default function Home() {
     return (
-        <div className="flex-1">
+        <div className="flex-1 ml-16">
             {/* here put more components */}
             {/* <Date /> */}
             <Symbol
-                name="Arcane"
+                name="arcane"
                 shortName="arc"
                 maxLevel={20}
                 maxEquip={2679}
@@ -27,7 +27,7 @@ export default function Home() {
                 }}
             />
             <Symbol
-                name="Sacred"
+                name="sacred"
                 shortName="sac"
                 maxLevel={11}
                 maxEquip={4565}

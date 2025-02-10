@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useEffect } from "react";
+import InfoBlock from "./InfoBlock";
+import IconLine from "./IconLine";
 
 interface SymbolProps {
     name: string;
@@ -201,201 +203,183 @@ function Symbol({
     }, [symbolInfo]);
 
     return (
-        <div className="p-3">
-            <div className="flex items-center mb-1">
-                <img
-                    src={`/image/${symbolShortName}0.webp`}
-                    className="w-9 h-9"
+        <InfoBlock
+            src={`/image/${symbolShortName}0.webp`}
+            title={`${symbolName} symbol`}
+        >
+            <div>
+                <input
+                    type="checkbox"
+                    checked={symbolInfo.symbolDaily}
+                    onChange={() => {
+                        dispatch({
+                            type: "setSymbolDaily",
+                            payload: !symbolInfo.symbolDaily,
+                        });
+                    }}
                 />
-                <h1 className="text-primary text-xl font-bold ml-1">
-                    {symbolName} Symbol
-                </h1>
+                <span className="mx-2">{symbolName} daily</span>
+                <input
+                    type="number"
+                    min={symbolDailyDefault}
+                    value={symbolInfo.symbolPerDay}
+                    className="text-gray-800 w-11 text-center"
+                    onChange={(e) => {
+                        dispatch({
+                            type: "setSymbolPerDay",
+                            payload: parseInt(e.target.value),
+                        });
+                    }}
+                />
+                <span className="mx-2">per day</span>
+                <input
+                    type="checkbox"
+                    checked={symbolInfo.symbolDailyToday}
+                    onChange={() => {
+                        dispatch({
+                            type: "setSymbolDailyToday",
+                            payload: !symbolInfo.symbolDailyToday,
+                        });
+                    }}
+                />
+                <span className="mx-2">completed today</span>
             </div>
-            <div className="bg-primaryGray rounded-xl p-3">
+            {symbolWeeklyDefault > 0 ? (
                 <div>
                     <input
                         type="checkbox"
-                        checked={symbolInfo.symbolDaily}
+                        checked={symbolInfo.symbolWeekly}
                         onChange={() => {
                             dispatch({
-                                type: "setSymbolDaily",
-                                payload: !symbolInfo.symbolDaily,
+                                type: "setSymbolWeekly",
+                                payload: !symbolInfo.symbolWeekly,
                             });
                         }}
                     />
-                    <span className="mx-2">{symbolName} daily</span>
-                    <input
-                        type="number"
-                        min={symbolDailyDefault}
-                        value={symbolInfo.symbolPerDay}
-                        className="text-gray-800 w-11 text-center"
-                        onChange={(e) => {
-                            dispatch({
-                                type: "setSymbolPerDay",
-                                payload: parseInt(e.target.value),
-                            });
-                        }}
-                    />
-                    <span className="mx-2">per day</span>
+                    <span className="mx-2">{symbolName} weekly</span>
                     <input
                         type="checkbox"
-                        checked={symbolInfo.symbolDailyToday}
+                        checked={symbolInfo.symbolWeeklyThisWeek}
                         onChange={() => {
                             dispatch({
-                                type: "setSymbolDailyToday",
-                                payload: !symbolInfo.symbolDailyToday,
+                                type: "setSymbolWeeklyThisWeek",
+                                payload: !symbolInfo.symbolWeeklyThisWeek,
                             });
                         }}
                     />
-                    <span className="mx-2">completed today</span>
+                    <span className="mx-2">completed this week</span>
                 </div>
-                {symbolWeeklyDefault > 0 ? (
-                    <div>
-                        <input
-                            type="checkbox"
-                            checked={symbolInfo.symbolWeekly}
-                            onChange={() => {
-                                dispatch({
-                                    type: "setSymbolWeekly",
-                                    payload: !symbolInfo.symbolWeekly,
-                                });
-                            }}
-                        />
-                        <span className="mx-2">{symbolName} weekly</span>
-                        <input
-                            type="checkbox"
-                            checked={symbolInfo.symbolWeeklyThisWeek}
-                            onChange={() => {
-                                dispatch({
-                                    type: "setSymbolWeeklyThisWeek",
-                                    payload: !symbolInfo.symbolWeeklyThisWeek,
-                                });
-                            }}
-                        />
-                        <span className="mx-2">completed this week</span>
-                    </div>
-                ) : null}
-                <div className="mt-4">
-                    <input type="checkbox" disabled />
-                    <span className="mx-2">Normalize with</span>
-                    <input
-                        type="number"
-                        value={symbolInfo.symbolExtraInput}
-                        className="text-gray-800 w-11 text-center"
-                        disabled
-                    />
-                    <span className="mx-2">extra symbol(s)</span>
-                </div>
-                <div className="flex mt-4">
-                    <div className="flex flex-col items-center">
-                        <img
-                            src={`/image/${symbolShortName}0.webp`}
-                            className="opacity-0"
-                        />
-                        <div>Level</div>
-                        <div>Equip</div>
-                    </div>
-                    {[1, 2, 3, 4, 5, 6].map((i) => (
-                        <div
-                            className="flex flex-col items-center ml-3"
-                            key={i}
-                        >
-                            <img
-                                src={`/image/${symbolShortName}${i}.webp`}
-                                className="w-9 h-9"
-                            />
-                            <input
-                                type="number"
-                                min={1}
-                                max={symbolMaxLevel}
-                                value={symbolInfo.symbolInput[i][0]}
-                                className="text-gray-800 w-14 text-center"
-                                onChange={(e) => {
-                                    dispatch({
-                                        type: "setSymbolLevel",
-                                        payload: {
-                                            i,
-                                            level: parseInt(e.target.value),
-                                        },
-                                    });
-                                }}
-                            />
-                            <input
-                                type="number"
-                                min={0}
-                                max={symbolMaxEquip}
-                                defaultValue={0}
-                                className="text-gray-800 w-14 text-center"
-                                onChange={(e) => {
-                                    dispatch({
-                                        type: "setSymbolEquip",
-                                        payload: {
-                                            i,
-                                            equip: parseInt(e.target.value),
-                                        },
-                                    });
-                                }}
-                            />
-                        </div>
-                    ))}
-                </div>
-                <div className="mt-4">
-                    <span className="text-gray-400 italic text-sm">
-                        {comment}
-                    </span>
-                    {symbolInfo.symbolMaxCost[0] !== -1
-                        ? symbolInfo.symbolRemaining.slice(1).map((cost, i) =>
-                              cost[0] > 0 ? (
-                                  <div key={i}>
-                                      <img
-                                          src={`/image/${symbolShortName}${
-                                              i + 1
-                                          }.webp`}
-                                          className="w-9 h-9 inline-block mr-1"
-                                      />
-                                      will finish in
-                                      <span className="text-primary">
-                                          {" "}
-                                          {i === 0 && symbolShortName === "sac"
-                                              ? calculateDaysToMax(cost[0], 10)
-                                              : calculateDaysToMax(
-                                                    cost[0]
-                                                )}{" "}
-                                      </span>
-                                      days and cost
-                                      <span className="text-primary">
-                                          {" "}
-                                          {cost[1].toLocaleString("en-US")}{" "}
-                                      </span>
-                                      mesos
-                                  </div>
-                              ) : null
-                          )
-                        : null}
-                    {symbolInfo.symbolMaxCost[1] === 0 ? (
-                        <div className="text-primary">Upgrade complete!</div>
-                    ) : !symbolInfo.symbolDaily && !symbolInfo.symbolWeekly ? (
-                        <div>Cannot upgrade any symbol</div>
-                    ) : (
-                        <div>
-                            The max upgrade will finish in
-                            <span className="text-primary">
-                                {" "}
-                                {symbolInfo.symbolMaxCost[0]}{" "}
-                            </span>
-                            days and cost
-                            <span className="text-primary">
-                                {" "}
-                                {symbolInfo.symbolMaxCost[1].toLocaleString(
-                                    "en-US"
-                                )}
-                            </span>{" "}
-                            mesos
-                        </div>
-                    )}
-                </div>
+            ) : null}
+            <div className="mt-4">
+                <input type="checkbox" disabled />
+                <span className="mx-2">Normalize with</span>
+                <input
+                    type="number"
+                    value={symbolInfo.symbolExtraInput}
+                    className="text-gray-800 w-11 text-center"
+                    disabled
+                />
+                <span className="mx-2">extra symbol(s)</span>
             </div>
-        </div>
+            <div className="flex mt-4">
+                <div className="flex flex-col items-center">
+                    <img
+                        src={`/image/${symbolShortName}0.webp`}
+                        className="opacity-0"
+                    />
+                    <div>Level</div>
+                    <div>Equip</div>
+                </div>
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                    <div className="flex flex-col items-center ml-3" key={i}>
+                        <img
+                            src={`/image/${symbolShortName}${i}.webp`}
+                            className="w-9 h-9"
+                        />
+                        <input
+                            type="number"
+                            min={1}
+                            max={symbolMaxLevel}
+                            value={symbolInfo.symbolInput[i][0]}
+                            className="text-gray-800 w-14 text-center"
+                            onChange={(e) => {
+                                dispatch({
+                                    type: "setSymbolLevel",
+                                    payload: {
+                                        i,
+                                        level: parseInt(e.target.value),
+                                    },
+                                });
+                            }}
+                        />
+                        <input
+                            type="number"
+                            min={0}
+                            max={symbolMaxEquip}
+                            defaultValue={0}
+                            className="text-gray-800 w-14 text-center"
+                            onChange={(e) => {
+                                dispatch({
+                                    type: "setSymbolEquip",
+                                    payload: {
+                                        i,
+                                        equip: parseInt(e.target.value),
+                                    },
+                                });
+                            }}
+                        />
+                    </div>
+                ))}
+            </div>
+            <div className="mt-4">
+                <span className="text-gray-400 italic text-sm">{comment}</span>
+                {symbolInfo.symbolMaxCost[0] !== -1
+                    ? symbolInfo.symbolRemaining.slice(1).map((cost, i) =>
+                          cost[0] > 0 ? (
+                              <IconLine
+                                  key={i}
+                                  src={`/image/${symbolShortName}${i + 1}.webp`}
+                              >
+                                  <span className="mx-1">will finish in</span>
+                                  <span className="text-primary">
+                                      {" "}
+                                      {i === 0 && symbolShortName === "sac"
+                                          ? calculateDaysToMax(cost[0], 10)
+                                          : calculateDaysToMax(cost[0])}{" "}
+                                  </span>
+                                  <span className="mx-1">days and cost</span>
+                                  <span className="text-primary">
+                                      {" "}
+                                      {cost[1].toLocaleString("en-US")}{" "}
+                                  </span>
+                                  <span className="mx-1">mesos</span>
+                              </IconLine>
+                          ) : null
+                      )
+                    : null}
+                {symbolInfo.symbolMaxCost[1] === 0 ? (
+                    <div className="text-primary">Upgrade complete!</div>
+                ) : !symbolInfo.symbolDaily && !symbolInfo.symbolWeekly ? (
+                    <div>Cannot upgrade any symbol</div>
+                ) : (
+                    <div>
+                        The max upgrade will finish in
+                        <span className="text-primary">
+                            {" "}
+                            {symbolInfo.symbolMaxCost[0]}{" "}
+                        </span>
+                        days and cost
+                        <span className="text-primary">
+                            {" "}
+                            {symbolInfo.symbolMaxCost[1].toLocaleString(
+                                "en-US"
+                            )}
+                        </span>{" "}
+                        mesos
+                    </div>
+                )}
+            </div>
+        </InfoBlock>
     );
 }
 

@@ -117,7 +117,7 @@ const Grind = () => {
     }, [grindInfo]);
 
     return (
-        <InfoBlock src="/image/exp.png" title="Grinding">
+        <InfoBlock src="/image/exp.png" title="grinding">
             <div className="mb-2">
                 <span>Item drop rate </span>
                 <input
