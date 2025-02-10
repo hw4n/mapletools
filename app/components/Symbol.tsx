@@ -191,11 +191,14 @@ function Symbol({
 
     useEffect(() => {
         calculateSymbolRemainingUntilMax();
+    }, [symbolInfo.symbolInput]);
+
+    useEffect(() => {
         localStorage.setItem(
             `symbolInfo${symbolName}`,
             JSON.stringify(symbolInfo)
         );
-    }, [symbolInfo.symbolInput]);
+    }, [symbolInfo]);
 
     return (
         <div className="p-3">
