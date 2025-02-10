@@ -1,5 +1,6 @@
 "use client";
 
+import Wap from "../components/Wap";
 import Symbol from "../components/Symbol";
 
 export default function Home() {
@@ -44,6 +45,7 @@ export default function Home() {
                     );
                 }}
             />
+            <Wap />
         </div>
     );
 }
