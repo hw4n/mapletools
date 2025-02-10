@@ -133,12 +133,16 @@ const Grind = () => {
                 />
                 %
             </div>
-            <div className="mb-2">
-                <span>WAP </span>
+            <div className="mb-2 flex items-center">
+                <img
+                    src="/image/wap.png"
+                    className="w-8 h-8 object-contain inline-block mr-1"
+                />
+                <span>WAP</span>
                 <input
                     type="number"
                     value={grindInfo.wap}
-                    className="text-gray-800 w-16 text-center"
+                    className="text-gray-800 w-16 text-center mx-1"
                     onChange={(e) => {
                         dispatch({
                             type: "wap",
@@ -146,12 +150,16 @@ const Grind = () => {
                         });
                     }}
                 />
-                <span className="text-orange-400"> or </span>
+                <span className="text-orange-400 mx-2"> or </span>
+                <img
+                    src="/image/swap.png"
+                    className="w-8 h-8 object-contain inline-block mr-1"
+                />
                 <span>SWAP </span>
                 <input
                     type="number"
                     value={grindInfo.swap}
-                    className="text-gray-800 w-16 text-center"
+                    className="text-gray-800 w-16 text-center mx-1"
                     onChange={(e) => {
                         dispatch({
                             type: "swap",
