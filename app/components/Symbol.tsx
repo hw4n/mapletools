@@ -2,17 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 
-function Symbol({
-    name: symbolName,
-    shortName: symbolShortName,
-    maxLevel: symbolMaxLevel,
-    maxEquip: symbolMaxEquip,
-    comment,
-    dailyDefault: symbolDailyDefault,
-    weeklyDefault: symbolWeeklyDefault,
-    calculateGrowth,
-    calculateMesoCost,
-}: {
+interface SymbolProps {
     name: string;
     shortName: string;
     maxLevel: number;
@@ -26,47 +16,89 @@ function Symbol({
         constant: number,
         growth: number
     ) => number;
-}) {
-    const [symbolDaily, setSymbolDaily] = useState(true);
-    const [symbolPerDay, setSymbolPerDay] = useState(symbolDailyDefault);
-    const [symbolDailyToday, setSymbolDailyToday] = useState(true);
-    const [symbolWeekly, setSymbolWeekly] = useState(symbolWeeklyDefault > 0);
-    const [symbolWeeklyThisWeek, setSymbolWeeklyThisWeek] = useState(true);
-    // const [symbolExtra, setSymbolExtra] = useState(false);
-    // const [symbolExtraAmount, setSymbolExtraAmount] = useState(50);
-    const [symbolInput, setSymbolInput] = useState([
-        [-1],
-        [1, 0],
-        [1, 0],
-        [1, 0],
-        [1, 0],
-        [1, 0],
-        [1, 0],
-    ]);
-    const [symbolRemaining, setSymbolRemaining] = useState([
-        [-1],
-        [0, 0],
-        [0, 0],
-        [0, 0],
-        [0, 0],
-        [0, 0],
-        [0, 0],
-    ]);
-    const [symbolMaxCost, setSymbolMaxCost] = useState([-1, 0]);
+}
 
-    function setSymbolLevel(i: number, level: number) {
-        const newSymbolInput = [...symbolInput];
-        newSymbolInput[i][0] = level;
-        setSymbolInput(newSymbolInput);
-    }
+interface SymbolInfo {
+    symbolDaily: boolean;
+    symbolPerDay: number;
+    symbolDailyToday: boolean;
+    symbolWeekly: boolean;
+    symbolWeeklyThisWeek: boolean;
+    symbolExtra: boolean;
+    symbolExtraInput: number;
+    symbolInput: number[][]; // [level, equip]
+    symbolRemaining: number[][]; // [growth, cost]
+    symbolMaxCost: number[]; // [days, cost]
+}
 
-    function setSymbolEquip(i: number, equip: number) {
-        const newSymbolInput = [...symbolInput];
-        newSymbolInput[i][1] = equip;
-        setSymbolInput(newSymbolInput);
+const symbolReducer = (
+    state: SymbolInfo,
+    action: { type: string; payload: any }
+) => {
+    switch (action.type) {
+        case "setSymbolDaily":
+            return { ...state, symbolDaily: action.payload };
+        case "setSymbolPerDay":
+            return { ...state, symbolPerDay: action.payload };
+        case "setSymbolDailyToday":
+            return { ...state, symbolDailyToday: action.payload };
+        case "setSymbolWeekly":
+            return { ...state, symbolWeekly: action.payload };
+        case "setSymbolWeeklyThisWeek":
+            return { ...state, symbolWeeklyThisWeek: action.payload };
+        case "setSymbolInput":
+            return { ...state, symbolInput: action.payload };
+        case "setSymbolRemaining":
+            return { ...state, symbolRemaining: action.payload };
+        case "setSymbolMaxCost":
+            return { ...state, symbolMaxCost: action.payload };
+        case "setSymbolLevel":
+            const newStateWithLevel = [...state.symbolInput];
+            newStateWithLevel[action.payload.i][0] = action.payload.level;
+            return { ...state, symbolInput: newStateWithLevel };
+        case "setSymbolEquip":
+            const newStateWithEquip = [...state.symbolInput];
+            newStateWithEquip[action.payload.i][1] = action.payload.equip;
+            return { ...state, symbolInput: newStateWithEquip };
+        case "readFromLocalStorage":
+            return action.payload;
+        default:
+            return state;
     }
+};
+
+function Symbol({
+    name: symbolName,
+    shortName: symbolShortName,
+    maxLevel: symbolMaxLevel,
+    maxEquip: symbolMaxEquip,
+    comment,
+    dailyDefault: symbolDailyDefault,
+    weeklyDefault: symbolWeeklyDefault,
+    calculateGrowth,
+    calculateMesoCost,
+}: SymbolProps) {
+    const initialState: SymbolInfo = {
+        symbolDaily: true,
+        symbolPerDay: symbolDailyDefault,
+        symbolDailyToday: true,
+        symbolWeekly: symbolWeeklyDefault > 0,
+        symbolWeeklyThisWeek: true,
+        symbolExtra: false,
+        symbolExtraInput: 50,
+        symbolInput: [[-1], [1, 0], [1, 0], [1, 0], [1, 0], [1, 0], [1, 0]],
+        symbolRemaining: [[-1], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]],
+        symbolMaxCost: [-1, 0],
+    };
+
+    const [symbolInfo, dispatch] = React.useReducer(
+        symbolReducer,
+        initialState
+    );
 
     function calculateSymbolRemainingUntilMax() {
+        const { symbolRemaining, symbolInput } = symbolInfo;
+
         const newRemaining = [...symbolRemaining];
         for (let i = 1; i <= 6; i++) {
             newRemaining[i][0] = 0;
@@ -82,10 +114,18 @@ function Symbol({
             }
             newRemaining[i][0] -= symbolInput[i][1];
         }
-        setSymbolRemaining(newRemaining);
+        dispatch({ type: "setSymbolRemaining", payload: newRemaining });
     }
 
     function calculateDaysToMax(remaining: number, additionalPerDay?: number) {
+        const {
+            symbolDaily,
+            symbolPerDay,
+            symbolDailyToday,
+            symbolWeekly,
+            symbolWeeklyThisWeek,
+        } = symbolInfo;
+
         const termination1 = !symbolDaily && !symbolWeekly;
         const termination2 = symbolDaily && symbolPerDay === 0;
         if (termination1 || termination2) {
@@ -113,11 +153,26 @@ function Symbol({
     }
 
     useEffect(() => {
-        calculateSymbolRemainingUntilMax();
-    }, [symbolInput]);
+        const symbolInfoFromLocalStorage = JSON.parse(
+            localStorage.getItem(`symbolInfo${symbolName}`) || "{}"
+        );
+        dispatch({
+            type: "readFromLocalStorage",
+            payload: { ...initialState, ...symbolInfoFromLocalStorage },
+        });
+    }, []);
 
     useEffect(() => {
-        console.log("test");
+        calculateSymbolRemainingUntilMax();
+        localStorage.setItem(
+            `symbolInfo${symbolName}`,
+            JSON.stringify(symbolInfo)
+        );
+    }, [symbolInfo.symbolInput]);
+
+    useEffect(() => {
+        const { symbolRemaining } = symbolInfo;
+
         const newSymbolMaxCost = [-1, 0];
 
         // Find maximum days to max and total cost
@@ -132,15 +187,8 @@ function Symbol({
             }
             newSymbolMaxCost[1] += symbolRemaining[i][1];
         }
-        setSymbolMaxCost(newSymbolMaxCost);
-    }, [
-        symbolRemaining,
-        symbolDaily,
-        symbolPerDay,
-        symbolDailyToday,
-        symbolWeekly,
-        symbolWeeklyThisWeek,
-    ]);
+        dispatch({ type: "setSymbolMaxCost", payload: newSymbolMaxCost });
+    }, [symbolInfo.symbolRemaining]);
 
     return (
         <div className="p-3">
@@ -157,27 +205,36 @@ function Symbol({
                 <div>
                     <input
                         type="checkbox"
-                        defaultChecked
+                        checked={symbolInfo.symbolDaily}
                         onChange={() => {
-                            setSymbolDaily(!symbolDaily);
+                            dispatch({
+                                type: "setSymbolDaily",
+                                payload: !symbolInfo.symbolDaily,
+                            });
                         }}
                     />
                     <span className="mx-2">{symbolName} daily</span>
                     <input
                         type="number"
                         min={symbolDailyDefault}
-                        defaultValue={symbolDailyDefault}
+                        value={symbolInfo.symbolPerDay}
                         className="text-gray-800 w-11 text-center"
                         onChange={(e) => {
-                            setSymbolPerDay(parseInt(e.target.value));
+                            dispatch({
+                                type: "setSymbolPerDay",
+                                payload: parseInt(e.target.value),
+                            });
                         }}
                     />
                     <span className="mx-2">per day</span>
                     <input
                         type="checkbox"
-                        defaultChecked
+                        checked={symbolInfo.symbolDailyToday}
                         onChange={() => {
-                            setSymbolDailyToday(!symbolDailyToday);
+                            dispatch({
+                                type: "setSymbolDailyToday",
+                                payload: !symbolInfo.symbolDailyToday,
+                            });
                         }}
                     />
                     <span className="mx-2">completed today</span>
@@ -186,17 +243,23 @@ function Symbol({
                     <div>
                         <input
                             type="checkbox"
-                            defaultChecked
+                            checked={symbolInfo.symbolWeekly}
                             onChange={() => {
-                                setSymbolWeekly(!symbolWeekly);
+                                dispatch({
+                                    type: "setSymbolWeekly",
+                                    payload: !symbolInfo.symbolWeekly,
+                                });
                             }}
                         />
                         <span className="mx-2">{symbolName} weekly</span>
                         <input
                             type="checkbox"
-                            defaultChecked
+                            checked={symbolInfo.symbolWeeklyThisWeek}
                             onChange={() => {
-                                setSymbolWeeklyThisWeek(!symbolWeeklyThisWeek);
+                                dispatch({
+                                    type: "setSymbolWeeklyThisWeek",
+                                    payload: !symbolInfo.symbolWeeklyThisWeek,
+                                });
                             }}
                         />
                         <span className="mx-2">completed this week</span>
@@ -207,7 +270,7 @@ function Symbol({
                     <span className="mx-2">Normalize with</span>
                     <input
                         type="number"
-                        defaultValue={50}
+                        value={symbolInfo.symbolExtraInput}
                         className="text-gray-800 w-11 text-center"
                         disabled
                     />
@@ -235,10 +298,16 @@ function Symbol({
                                 type="number"
                                 min={1}
                                 max={symbolMaxLevel}
-                                defaultValue="1"
+                                value={symbolInfo.symbolInput[i][0]}
                                 className="text-gray-800 w-14 text-center"
                                 onChange={(e) => {
-                                    setSymbolLevel(i, parseInt(e.target.value));
+                                    dispatch({
+                                        type: "setSymbolLevel",
+                                        payload: {
+                                            i,
+                                            level: parseInt(e.target.value),
+                                        },
+                                    });
                                 }}
                             />
                             <input
@@ -248,7 +317,13 @@ function Symbol({
                                 defaultValue={0}
                                 className="text-gray-800 w-14 text-center"
                                 onChange={(e) => {
-                                    setSymbolEquip(i, parseInt(e.target.value));
+                                    dispatch({
+                                        type: "setSymbolEquip",
+                                        payload: {
+                                            i,
+                                            equip: parseInt(e.target.value),
+                                        },
+                                    });
                                 }}
                             />
                         </div>
@@ -258,50 +333,60 @@ function Symbol({
                     <span className="text-gray-400 italic text-sm">
                         {comment}
                     </span>
-                    {symbolMaxCost[0] !== -1
-                        ? symbolRemaining.slice(1).map((cost, i) =>
-                              cost[0] > 0 ? (
-                                  <div key={i}>
-                                      <img
-                                          src={`/image/${symbolShortName}${
-                                              i + 1
-                                          }.webp`}
-                                          className="w-9 h-9 inline-block mr-1"
-                                      />
-                                      will finish in
-                                      <span className="text-primary">
-                                          {" "}
-                                          {i === 0 && symbolShortName === "sac"
-                                              ? calculateDaysToMax(cost[0], 10)
-                                              : calculateDaysToMax(
-                                                    cost[0]
-                                                )}{" "}
-                                      </span>
-                                      days and cost
-                                      <span className="text-primary">
-                                          {" "}
-                                          {cost[1].toLocaleString("en-US")}{" "}
-                                      </span>
-                                      mesos
-                                  </div>
-                              ) : null
-                          )
+                    {symbolInfo.symbolMaxCost[0] !== -1
+                        ? symbolInfo.symbolRemaining
+                              .slice(1)
+                              .map((cost: any, i: any) =>
+                                  cost[0] > 0 ? (
+                                      <div key={i}>
+                                          <img
+                                              src={`/image/${symbolShortName}${
+                                                  i + 1
+                                              }.webp`}
+                                              className="w-9 h-9 inline-block mr-1"
+                                          />
+                                          will finish in
+                                          <span className="text-primary">
+                                              {" "}
+                                              {i === 0 &&
+                                              symbolShortName === "sac"
+                                                  ? calculateDaysToMax(
+                                                        cost[0],
+                                                        10
+                                                    )
+                                                  : calculateDaysToMax(
+                                                        cost[0]
+                                                    )}{" "}
+                                          </span>
+                                          days and cost
+                                          <span className="text-primary">
+                                              {" "}
+                                              {cost[1].toLocaleString(
+                                                  "en-US"
+                                              )}{" "}
+                                          </span>
+                                          mesos
+                                      </div>
+                                  ) : null
+                              )
                         : null}
-                    {symbolMaxCost[1] === 0 ? (
+                    {symbolInfo.symbolMaxCost[1] === 0 ? (
                         <div className="text-primary">Upgrade complete!</div>
-                    ) : symbolMaxCost[0] === -1 ? (
+                    ) : symbolInfo.symbolMaxCost[0] === -1 ? (
                         <div>Cannot upgrade any symbol</div>
                     ) : (
                         <div>
                             The max upgrade will finish in
                             <span className="text-primary">
                                 {" "}
-                                {symbolMaxCost[0]}{" "}
+                                {symbolInfo.symbolMaxCost[0]}{" "}
                             </span>
                             days and cost
                             <span className="text-primary">
                                 {" "}
-                                {symbolMaxCost[1].toLocaleString("en-US")}
+                                {symbolInfo.symbolMaxCost[1].toLocaleString(
+                                    "en-US"
+                                )}
                             </span>{" "}
                             mesos
                         </div>
