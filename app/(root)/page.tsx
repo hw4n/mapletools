@@ -3,6 +3,7 @@
 import Wap from "../components/Wap";
 import Symbol from "../components/Symbol";
 import Timezone from "../components/Timezone";
+import Hexa from "../components/Hexa";
 
 export default function Home() {
     return (
@@ -48,6 +49,7 @@ export default function Home() {
             />
             <Wap />
             <Timezone />
+            <Hexa />
         </div>
     );
 }

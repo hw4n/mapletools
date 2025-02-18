@@ -9,6 +9,7 @@ const Sidebar = () => {
                 <SidebarIcon href="#sacredsymbol" src="/image/sac0.webp" />
                 <SidebarIcon href="#grinding" src="/image/exp.png" />
                 <SidebarIcon href="#timezone" src="/image/hourglass.png" />
+                <SidebarIcon href="#hexamatrix" src="/image/hexa.png" />
             </ul>
         </aside>
     );
