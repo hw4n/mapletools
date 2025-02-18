@@ -8,11 +8,19 @@ function Title({
     return (
         <div className="flex items-center mb-1">
             {src ? <img src={src} className="w-9 h-9 object-contain" /> : null}
-            <div
-                className={`text-primary text-xl font-bold ml-1 uppercase ${className}`}
-            >
-                {title}
-            </div>
+            {className?.includes("text-") ? (
+                <div
+                    className={`text-xl font-bold ml-1 uppercase ${className}`}
+                >
+                    {title}
+                </div>
+            ) : (
+                <div
+                    className={`text-primary text-xl font-bold ml-1 uppercase`}
+                >
+                    {title}
+                </div>
+            )}
         </div>
     );
 }
