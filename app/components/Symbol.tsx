@@ -476,7 +476,7 @@ function Symbol({
                     <InfoBlock title="normalizing" className="text-yellow-400">
                         <div className="text-gray-400 italic text-sm mb-2">
                             The following calculation ignores daily acquisition
-                            and equalizes the number of symbols equal.
+                            and equalizes the number of symbols.
                         </div>
                         {squeezeNormalizingPath().map((x, i) =>
                             x[0] !== -1 ? (
