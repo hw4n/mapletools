@@ -205,7 +205,7 @@ function Symbol({
             }
 
             tempRemaining = tempRemaining.filter((x) => x !== maxRemaining);
-            let secondMax = Math.max(...tempRemaining);
+            const secondMax = Math.max(...tempRemaining);
             if (secondMax === -1) {
                 resultArray.push([-1, maxRemaining]);
                 break;
