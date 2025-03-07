@@ -1,7 +1,6 @@
 import React from "react";
 import InfoBlock from "./InfoBlock";
-// @ts-ignore ez
-import { jStat } from "jstat";
+import * as mathjs from "mathjs";
 
 interface LuckinessData {
     targetProbability: number;
@@ -112,8 +111,14 @@ const luckReducer = (
     }
 };
 
+function cdfNormal(x: number, mean: number, standardDeviation: number) {
+    return (
+        (1 - mathjs.erf((mean - x) / (Math.sqrt(2) * standardDeviation))) / 2
+    );
+}
+
 function cdfz(z: number) {
-    return jStat.normal.cdf(z, 0, 1);
+    return cdfNormal(z, 0, 1);
 }
 
 function generateSTDString(n: number, p: number) {
