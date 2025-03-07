@@ -1,5 +1,6 @@
 import React from "react";
 import InfoBlock from "./InfoBlock";
+// @ts-ignore ez
 import { jStat } from "jstat";
 
 interface LuckinessData {
