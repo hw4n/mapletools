@@ -102,7 +102,7 @@ function Luckiness() {
     const [luckState, dispatch] = React.useReducer(luckReducer, initialState);
 
     return (
-        <InfoBlock title="luckiness" src="/image/clover.png">
+        <InfoBlock title="luckiness calculator" src="/image/clover.png">
             <div className="mb-2">
                 <span>Target probability</span>
                 <input

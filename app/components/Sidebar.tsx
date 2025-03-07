@@ -10,7 +10,10 @@ const Sidebar = () => {
                 <SidebarIcon href="#grinding" src="/image/exp.png" />
                 <SidebarIcon href="#timezone" src="/image/hourglass.png" />
                 <SidebarIcon href="#hexamatrix" src="/image/hexa.png" />
-                <SidebarIcon href="#luckiness" src="/image/clover.png" />
+                <SidebarIcon
+                    href="#luckinesscalculator"
+                    src="/image/clover.png"
+                />
             </ul>
         </aside>
     );
