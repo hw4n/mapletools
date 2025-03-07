@@ -4,6 +4,7 @@ import Wap from "../components/Wap";
 import Symbol from "../components/Symbol";
 import Timezone from "../components/Timezone";
 import Hexa from "../components/Hexa";
+import Luckiness from "../components/Luckiness";
 
 export default function Home() {
     return (
@@ -50,6 +51,7 @@ export default function Home() {
             <Wap />
             <Timezone />
             <Hexa />
+            <Luckiness />
         </div>
     );
 }
