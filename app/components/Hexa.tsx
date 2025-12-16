@@ -3,7 +3,10 @@ import InfoBlock from "./InfoBlock";
 import IconLine from "./IconLine";
 
 const hexacorePositions = {
-    skill: [{ top: 33.3, left: 35.5 }],
+    skill: [
+        { top: 33.3, left: 35.5 },
+        { top: 21.5, left: 28.4 },
+    ],
     mastery: [
         { top: 33.3, left: 54.6 },
         { top: 21.5, left: 61.6 },
@@ -16,7 +19,10 @@ const hexacorePositions = {
         { top: 73.5, left: 14.5 },
         { top: 85.4, left: 7.8 },
     ],
-    common: [{ top: 61.5, left: 54.6 }],
+    common: [
+        { top: 61.5, left: 54.6 },
+        { top: 73.5, left: 61.6 },
+    ],
 };
 
 const hexaCost = {
@@ -90,19 +96,20 @@ type hexacoreType = "skill" | "mastery" | "boost" | "common";
 
 function Hexa() {
     const [hexacore, setHexacore] = React.useState<Record<string, number[]>>({
-        skill: [0],
+        // origin
+        skill: [0, 0],
         mastery: [0, 0, 0, 0],
         boost: [0, 0, 0, 0],
-        common: [0],
+        common: [0, 0],
     });
 
     const [hexacostTarget, setHexacostTarget] = React.useState<
         Record<string, number[]>
     >({
-        skill: [30],
+        skill: [30, 30],
         mastery: [30, 30, 30, 30],
         boost: [30, 30, 30, 30],
-        common: [30],
+        common: [30, 30],
     });
 
     const [totalCost, setTotalCost] = React.useState({ erda: 0, fragment: 0 });
@@ -110,12 +117,32 @@ function Hexa() {
     useEffect(() => {
         const lastCore = localStorage.getItem("hexacore");
         if (lastCore) {
-            setHexacore(JSON.parse(lastCore));
+            const parsedCore = JSON.parse(lastCore);
+            if (parsedCore.skill.length < 2 || parsedCore.common.length < 2) {
+                localStorage.removeItem("hexacore");
+                parsedCore.skill = [0, 0];
+                parsedCore.mastery = [0, 0, 0, 0];
+                parsedCore.boost = [0, 0, 0, 0];
+                parsedCore.common = [0, 0];
+            }
+            setHexacore(parsedCore);
         }
 
         const lastTarget = localStorage.getItem("hexacostTarget");
         if (lastTarget) {
-            setHexacostTarget(JSON.parse(lastTarget));
+            const parsedTarget = JSON.parse(lastTarget);
+            console.log(parsedTarget);
+            if (
+                parsedTarget.skill.length < 2 ||
+                parsedTarget.common.length < 2
+            ) {
+                localStorage.removeItem("hexacostTarget");
+                parsedTarget.skill = [30, 30];
+                parsedTarget.mastery = [30, 30, 30, 30];
+                parsedTarget.boost = [30, 30, 30, 30];
+                parsedTarget.common = [30, 30];
+            }
+            setHexacostTarget(parsedTarget);
         }
     }, []);
 
