@@ -112,8 +112,6 @@ function Hexa() {
         common: [30, 30],
     });
 
-    const [totalCost, setTotalCost] = React.useState({ erda: 0, fragment: 0 });
-
     useEffect(() => {
         const lastCore = localStorage.getItem("hexacore");
         if (lastCore) {
@@ -125,13 +123,14 @@ function Hexa() {
                 parsedCore.boost = [0, 0, 0, 0];
                 parsedCore.common = [0, 0];
             }
+            // Apply persisted state after hydration to keep server/client markup aligned.
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setHexacore(parsedCore);
         }
 
         const lastTarget = localStorage.getItem("hexacostTarget");
         if (lastTarget) {
             const parsedTarget = JSON.parse(lastTarget);
-            console.log(parsedTarget);
             if (
                 parsedTarget.skill.length < 2 ||
                 parsedTarget.common.length < 2
@@ -149,20 +148,23 @@ function Hexa() {
     useEffect(() => {
         localStorage.setItem("hexacore", JSON.stringify(hexacore));
         localStorage.setItem("hexacostTarget", JSON.stringify(hexacostTarget));
+    }, [hexacore, hexacostTarget]);
 
-        const totalCost = { erda: 0, fragment: 0 };
+    const totalCost = React.useMemo(() => {
+        const cost = { erda: 0, fragment: 0 };
         Object.entries(hexacore).forEach(([type, levels]) => {
             levels.forEach((level, i) => {
-                const cost = calculateHexaCost(
+                const hexaCost = calculateHexaCost(
                     type as hexacoreType,
                     level,
                     hexacostTarget[type][i]
                 );
-                totalCost.erda += cost.erda;
-                totalCost.fragment += cost.fragment;
+                cost.erda += hexaCost.erda;
+                cost.fragment += hexaCost.fragment;
             });
         });
-        setTotalCost(totalCost);
+
+        return cost;
     }, [hexacore, hexacostTarget]);
 
     return (
