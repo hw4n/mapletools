@@ -5,12 +5,14 @@ import Symbol from "../components/Symbol";
 import Timezone from "../components/Timezone";
 import Hexa from "../components/Hexa";
 import Luckiness from "../components/Luckiness";
+import EquipmentSetup from "../components/EquipmentSetup";
 
 export default function Home() {
     return (
         <div className="flex-1 ml-16">
             {/* here put more components */}
             {/* <Date /> */}
+            <EquipmentSetup />
             <Symbol
                 name="arcane"
                 shortName="arc"

@@ -5,6 +5,10 @@ const Sidebar = () => {
     return (
         <aside className="w-16 bg-slate-500 fixed h-full">
             <ul className="flex flex-col items-center h-full">
+                <SidebarIcon
+                    href="#equipmentsetup"
+                    src="/image/equipment/icons/weapon.png"
+                />
                 <SidebarIcon href="#arcanesymbol" src="/image/arc0.webp" />
                 <SidebarIcon href="#sacredsymbol" src="/image/sac0.webp" />
                 <SidebarIcon href="#grinding" src="/image/exp.png" />
