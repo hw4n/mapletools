@@ -694,6 +694,7 @@ type PotentialStatTotals = {
     ignorePercent: number;
     generalPercent: number;
     criticalDamagePercent: number;
+    hasAllStatPercent: boolean;
 };
 
 const emptyPotentialStatTotals = (): PotentialStatTotals => ({
@@ -702,6 +703,7 @@ const emptyPotentialStatTotals = (): PotentialStatTotals => ({
     ignorePercent: 0,
     generalPercent: 0,
     criticalDamagePercent: 0,
+    hasAllStatPercent: false,
 });
 
 const getFirstPotentialPercentValue = (line: string) => {
@@ -813,6 +815,9 @@ const parsePotentialLineStats = (
     if (isPrimaryStatLine || isAllStatLine) {
         totals.generalPercent += value;
     }
+    if (isAllStatLine && value > 0) {
+        totals.hasAllStatPercent = true;
+    }
 
     return totals;
 };
@@ -827,6 +832,7 @@ const addPotentialStatTotals = (
     generalPercent: total.generalPercent + next.generalPercent,
     criticalDamagePercent:
         total.criticalDamagePercent + next.criticalDamagePercent,
+    hasAllStatPercent: total.hasAllStatPercent || next.hasAllStatPercent,
 });
 
 const calculatePotentialStats = (
@@ -854,6 +860,9 @@ const calculateSlotPotentialStats = (
         kind
     );
 
+const formatGeneralPotentialPercent = (stats: PotentialStatTotals) =>
+    `${formatScore(stats.generalPercent)}%${stats.hasAllStatPercent ? "+" : ""}`;
+
 const formatPotentialStats = (
     stats: PotentialStatTotals,
     kind: EquipKind
@@ -864,7 +873,7 @@ const formatPotentialStats = (
             parts.push(`Crit ${formatScore(stats.criticalDamagePercent)}%`);
         }
         if (stats.generalPercent > 0) {
-            parts.push(`${formatScore(stats.generalPercent)}%`);
+            parts.push(formatGeneralPotentialPercent(stats));
         }
 
         return parts.length > 0 ? parts.join(" / ") : "0%";
@@ -899,14 +908,15 @@ const getPotentialGridBadges = (
             {
                 kind: "general" as const,
                 value: stats.generalPercent,
+                label: formatGeneralPotentialPercent(stats),
                 title: "Potential",
                 isVisible: true,
             },
         ]
             .filter(({ isVisible, value }) => isVisible && value > 0)
-            .map(({ kind, value, title }) => ({
+            .map(({ kind, value, label, title }) => ({
                 kind,
-                value: `${formatScore(value)}%`,
+                value: label || `${formatScore(value)}%`,
                 title,
             }));
     }
