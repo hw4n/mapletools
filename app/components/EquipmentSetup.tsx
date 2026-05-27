@@ -369,11 +369,21 @@ const MESO_COUNTER_STEPS = [
 ];
 const MAX_TRACKED_VALUE = Number.MAX_SAFE_INTEGER;
 const NUMBER_FORMATTER = new Intl.NumberFormat("en-US");
-const EQUIPMENT_PRESET_IDS = ["preset-1", "preset-2", "preset-3"] as const;
+const EQUIPMENT_PRESET_IDS = [
+    "preset-1",
+    "preset-2",
+    "preset-3",
+    "preset-4",
+    "preset-5",
+    "preset-6",
+] as const;
 const EQUIPMENT_PRESET_LABELS: Record<EquipmentPresetId, string> = {
     "preset-1": "Preset 1",
     "preset-2": "Preset 2",
     "preset-3": "Preset 3",
+    "preset-4": "Preset 4",
+    "preset-5": "Preset 5",
+    "preset-6": "Preset 6",
 };
 
 const STAR_FORCE_LEVEL_CAPS = [
@@ -477,6 +487,8 @@ type EquipmentSlotState = {
 type EquipmentPresetId = (typeof EQUIPMENT_PRESET_IDS)[number];
 
 type EquipmentPresetState = {
+    selectedJobType: JobType;
+    flameScoreSettings: FlameScoreSettings;
     selectedSlotId: EquipSlotId | null;
     equipmentState: Record<EquipSlotId, EquipmentSlotState>;
 };
@@ -1654,6 +1666,8 @@ const createInitialState = (
 const createInitialPresetState = (
     jobType: JobType = DEFAULT_JOB_TYPE
 ): EquipmentPresetState => ({
+    selectedJobType: jobType,
+    flameScoreSettings: normalizeFlameScoreSettings(undefined, jobType),
     selectedSlotId: null,
     equipmentState: createInitialState(jobType),
 });
@@ -1892,16 +1906,33 @@ const normalizeEquipmentState = (
 
 const normalizeEquipmentPresetState = (
     jobType: JobType = DEFAULT_JOB_TYPE,
+    fallbackFlameScoreSettings: FlameScoreSettings = normalizeFlameScoreSettings(
+        undefined,
+        jobType
+    ),
     rawPreset?: unknown
 ): EquipmentPresetState => {
     const parsedPreset = isRecord(rawPreset) ? rawPreset : {};
+    const selectedJobType = isJobType(parsedPreset.selectedJobType)
+        ? parsedPreset.selectedJobType
+        : jobType;
+    const flameScoreSettings = normalizeFlameScoreSettings(
+        isRecord(parsedPreset.flameScoreSettings)
+            ? (parsedPreset.flameScoreSettings as Partial<
+                  Record<keyof FlameScoreSettings, unknown>
+              >)
+            : fallbackFlameScoreSettings,
+        selectedJobType
+    );
 
     return {
+        selectedJobType,
+        flameScoreSettings,
         selectedSlotId: isEquipSlotId(parsedPreset.selectedSlotId)
             ? parsedPreset.selectedSlotId
             : null,
         equipmentState: normalizeEquipmentState(
-            jobType,
+            selectedJobType,
             parsedPreset.equipmentState
         ),
     };
@@ -1909,6 +1940,10 @@ const normalizeEquipmentPresetState = (
 
 const normalizeEquipmentPresets = (
     jobType: JobType = DEFAULT_JOB_TYPE,
+    fallbackFlameScoreSettings: FlameScoreSettings = normalizeFlameScoreSettings(
+        undefined,
+        jobType
+    ),
     rawPresets?: unknown
 ): EquipmentPresetsState => {
     const parsedPresets = isRecord(rawPresets) ? rawPresets : {};
@@ -1916,7 +1951,11 @@ const normalizeEquipmentPresets = (
     return Object.fromEntries(
         EQUIPMENT_PRESET_IDS.map((presetId) => [
             presetId,
-            normalizeEquipmentPresetState(jobType, parsedPresets[presetId]),
+            normalizeEquipmentPresetState(
+                jobType,
+                fallbackFlameScoreSettings,
+                parsedPresets[presetId]
+            ),
         ])
     ) as EquipmentPresetsState;
 };
@@ -1943,7 +1982,11 @@ const loadStoredState = (
 };
 
 const loadStoredPresets = (
-    jobType: JobType = DEFAULT_JOB_TYPE
+    jobType: JobType = DEFAULT_JOB_TYPE,
+    flameScoreSettings: FlameScoreSettings = normalizeFlameScoreSettings(
+        undefined,
+        jobType
+    )
 ): EquipmentPresetsState => {
     if (typeof window === "undefined") {
         return createInitialPresets(jobType);
@@ -1954,7 +1997,11 @@ const loadStoredPresets = (
             EQUIPMENT_SETUP_PRESETS_STORAGE_KEY
         );
         if (rawPresets) {
-            return normalizeEquipmentPresets(jobType, JSON.parse(rawPresets));
+            return normalizeEquipmentPresets(
+                jobType,
+                flameScoreSettings,
+                JSON.parse(rawPresets)
+            );
         }
     } catch {
         return createInitialPresets(jobType);
@@ -1963,6 +2010,8 @@ const loadStoredPresets = (
     return {
         ...createInitialPresets(jobType),
         "preset-1": {
+            selectedJobType: jobType,
+            flameScoreSettings,
             selectedSlotId: null,
             equipmentState: loadStoredState(jobType),
         },
@@ -2063,10 +2112,6 @@ const readClipboardText = async () => {
 function EquipmentSetup() {
     const [activePresetId, setActivePresetId] =
         React.useState<EquipmentPresetId>("preset-1");
-    const [selectedJobType, setSelectedJobType] =
-        React.useState<JobType>(DEFAULT_JOB_TYPE);
-    const [flameScoreSettings, setFlameScoreSettings] =
-        React.useState<FlameScoreSettings>(DEFAULT_FLAME_SCORE_SETTINGS);
     const [equipmentPresets, setEquipmentPresets] =
         React.useState<EquipmentPresetsState>(createInitialPresets);
     const [isLoaded, setIsLoaded] = React.useState(false);
@@ -2074,12 +2119,14 @@ function EquipmentSetup() {
 
     React.useEffect(() => {
         const storedJobType = loadStoredJobType();
+        const storedFlameScoreSettings =
+            loadStoredFlameScoreSettings(storedJobType);
         // Restore browser-only state after hydration.
         // eslint-disable-next-line react-hooks/set-state-in-effect
-        setSelectedJobType(storedJobType);
         setActivePresetId(loadStoredActivePresetId());
-        setFlameScoreSettings(loadStoredFlameScoreSettings(storedJobType));
-        setEquipmentPresets(loadStoredPresets(storedJobType));
+        setEquipmentPresets(
+            loadStoredPresets(storedJobType, storedFlameScoreSettings)
+        );
         setIsLoaded(true);
     }, []);
 
@@ -2096,18 +2143,7 @@ function EquipmentSetup() {
             EQUIPMENT_SETUP_ACTIVE_PRESET_STORAGE_KEY,
             activePresetId
         );
-        localStorage.setItem("equipmentSetupJobType", selectedJobType);
-        localStorage.setItem(
-            "equipmentFlameScoreSettings",
-            JSON.stringify(flameScoreSettings)
-        );
-    }, [
-        activePresetId,
-        equipmentPresets,
-        flameScoreSettings,
-        isLoaded,
-        selectedJobType,
-    ]);
+    }, [activePresetId, equipmentPresets, isLoaded]);
 
     React.useEffect(() => {
         if (!setupTransferStatus) {
@@ -2124,7 +2160,9 @@ function EquipmentSetup() {
 
     const activePreset =
         equipmentPresets[activePresetId] ||
-        createInitialPresetState(selectedJobType);
+        createInitialPresetState(DEFAULT_JOB_TYPE);
+    const selectedJobType = activePreset.selectedJobType;
+    const flameScoreSettings = activePreset.flameScoreSettings;
     const equipmentState = activePreset.equipmentState;
     const selectedSlotId = activePreset.selectedSlotId;
     const selectedSlot = selectedSlotId
@@ -2151,10 +2189,14 @@ function EquipmentSetup() {
     );
 
     const updateJobType = (jobType: JobType) => {
-        setSelectedJobType(jobType);
-        setFlameScoreSettings((settings) =>
-            applyJobDefaultsToFlameSettings(settings, jobType)
-        );
+        updateActivePreset((preset) => ({
+            ...preset,
+            selectedJobType: jobType,
+            flameScoreSettings: applyJobDefaultsToFlameSettings(
+                preset.flameScoreSettings,
+                jobType
+            ),
+        }));
     };
 
     const updateActivePreset = (
@@ -2165,6 +2207,18 @@ function EquipmentSetup() {
             [activePresetId]: updater(
                 prev[activePresetId] || createInitialPresetState(selectedJobType)
             ),
+        }));
+    };
+
+    const updateFlameScoreSettings: React.Dispatch<
+        React.SetStateAction<FlameScoreSettings>
+    > = (nextSettings) => {
+        updateActivePreset((preset) => ({
+            ...preset,
+            flameScoreSettings:
+                typeof nextSettings === "function"
+                    ? nextSettings(preset.flameScoreSettings)
+                    : nextSettings,
         }));
     };
 
@@ -2293,11 +2347,11 @@ function EquipmentSetup() {
                 await readClipboardText()
             );
 
-            setSelectedJobType(importedSetup.jobType);
-            setFlameScoreSettings(importedSetup.flameScoreSettings);
             setEquipmentPresets((prev) => ({
                 ...prev,
                 [activePresetId]: {
+                    selectedJobType: importedSetup.jobType,
+                    flameScoreSettings: importedSetup.flameScoreSettings,
                     selectedSlotId: importedSetup.selectedSlotId,
                     equipmentState: importedSetup.equipmentState,
                 },
@@ -2310,18 +2364,18 @@ function EquipmentSetup() {
 
     return (
         <InfoBlock title="equipment setup" src="/image/equipment/icons/weapon.png">
+            <PresetTabsPanel
+                activePresetId={activePresetId}
+                enhancementTotals={enhancementTotals}
+                onChange={setActivePresetId}
+            />
+
             <JobTypeSelector
                 selectedJobType={selectedJobType}
                 setupTransferStatus={setupTransferStatus}
                 onChange={updateJobType}
                 onCopySetup={copyEquipmentSetup}
                 onPasteSetup={pasteEquipmentSetup}
-            />
-
-            <PresetTabsPanel
-                activePresetId={activePresetId}
-                enhancementTotals={enhancementTotals}
-                onChange={setActivePresetId}
             />
 
             <div className="grid gap-4 xl:grid-cols-[minmax(250px,0.9fr)_minmax(480px,1.15fr)_minmax(430px,2fr)]">
@@ -2350,7 +2404,7 @@ function EquipmentSetup() {
                         selectedSlot={selectedSlot}
                         selectedSlotId={selectedSlotId}
                         flameScoreSettings={flameScoreSettings}
-                        onFlameScoreSettingsChange={setFlameScoreSettings}
+                        onFlameScoreSettingsChange={updateFlameScoreSettings}
                         onFlameLineChange={updateFlameLine}
                         onPotentialLineChange={updatePotentialLine}
                         onResetAll={resetAllSlots}
