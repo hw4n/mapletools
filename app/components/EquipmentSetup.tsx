@@ -509,10 +509,17 @@ const isSuperiorEquipment = (
 ) => {
     const itemName = `${item?.name || slot?.itemName || ""}`.toLowerCase();
     const setType = item?.setType || slot?.itemSetType || "";
-    const itemId = `${item?.id || ""}`.toLowerCase();
+    const itemId = `${item?.id || item?.baseId || ""}`.toLowerCase();
+
+    if (
+        setType === "superiorGollux" ||
+        itemId.includes("superior-gollux") ||
+        (itemName.includes("superior") && itemName.includes("gollux"))
+    ) {
+        return false;
+    }
 
     return (
-        setType === "superiorGollux" ||
         itemName.includes("superior") ||
         itemName.includes("tyrant") ||
         itemId.includes("tyrant")
@@ -3099,49 +3106,36 @@ function StarForceSelector({
         (clientX: number, clientY: number) => {
             const root = rootRef.current;
             if (!root) {
-                return value;
+                return undefined;
             }
 
             const element = document.elementFromPoint(clientX, clientY);
-            const directButton = element?.closest<HTMLButtonElement>(
+            const button = element?.closest<HTMLButtonElement>(
                 "[data-star-value]"
             );
 
-            if (directButton && root.contains(directButton)) {
-                return clampNumber(
-                    Number(directButton.dataset.starValue) || 0,
-                    0,
-                    normalizedMaxStars
-                );
+            if (!button || !root.contains(button)) {
+                return undefined;
             }
 
-            const buttons = Array.from(
-                root.querySelectorAll<HTMLButtonElement>("[data-star-value]")
+            return clampNumber(
+                Number(button.dataset.starValue) || 0,
+                0,
+                normalizedMaxStars
             );
-            let closestValue = value;
-            let closestDistance = Number.POSITIVE_INFINITY;
-
-            for (const button of buttons) {
-                const rect = button.getBoundingClientRect();
-                const centerX = rect.left + rect.width / 2;
-                const centerY = rect.top + rect.height / 2;
-                const distance =
-                    (centerX - clientX) ** 2 + (centerY - clientY) ** 2;
-
-                if (distance < closestDistance) {
-                    closestDistance = distance;
-                    closestValue = Number(button.dataset.starValue) || value;
-                }
-            }
-
-            return clampNumber(closestValue, 0, normalizedMaxStars);
         },
-        [normalizedMaxStars, value]
+        [normalizedMaxStars]
     );
 
     const updateFromPointer = React.useCallback(
         (event: React.PointerEvent<HTMLDivElement>) => {
-            onChange(getStarValueFromPoint(event.clientX, event.clientY));
+            const nextValue = getStarValueFromPoint(
+                event.clientX,
+                event.clientY
+            );
+            if (nextValue !== undefined) {
+                onChange(nextValue);
+            }
         },
         [getStarValueFromPoint, onChange]
     );
@@ -3151,10 +3145,15 @@ function StarForceSelector({
             return;
         }
 
+        const nextValue = getStarValueFromPoint(event.clientX, event.clientY);
+        if (nextValue === undefined) {
+            return;
+        }
+
         isDraggingRef.current = true;
         event.currentTarget.setPointerCapture(event.pointerId);
         event.preventDefault();
-        updateFromPointer(event);
+        onChange(nextValue);
     };
 
     const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
