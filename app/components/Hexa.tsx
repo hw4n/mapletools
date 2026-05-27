@@ -2,10 +2,18 @@ import React, { useEffect } from "react";
 import InfoBlock from "./InfoBlock";
 import IconLine from "./IconLine";
 
-const hexacorePositions = {
+type HexacoreType = "skill" | "mastery" | "boost" | "common";
+type HexaLevels = Record<HexacoreType, number[]>;
+
+const hexacoreTypes: HexacoreType[] = ["skill", "mastery", "boost", "common"];
+
+const hexacorePositions: Record<
+    HexacoreType,
+    { top: number; left: number }[]
+> = {
     skill: [
         { top: 33.3, left: 35.5 },
-        { top: 21.5, left: 28.4 },
+        { top: 33.3, left: 21.5 },
     ],
     mastery: [
         { top: 33.3, left: 54.6 },
@@ -22,10 +30,23 @@ const hexacorePositions = {
     common: [
         { top: 61.5, left: 54.6 },
         { top: 73.5, left: 61.6 },
+        { top: 73.5, left: 75.6 },
     ],
 };
 
-const hexaCost = {
+function createHexaLevels(defaultLevel: number): HexaLevels {
+    return Object.fromEntries(
+        hexacoreTypes.map((type) => [
+            type,
+            Array(hexacorePositions[type].length).fill(defaultLevel),
+        ])
+    ) as HexaLevels;
+}
+
+const defaultHexacore = createHexaLevels(0);
+const defaultHexacostTarget = createHexaLevels(30);
+
+const hexaCost: Record<HexacoreType, { erda: number[]; fragment: number[] }> = {
     skill: {
         erda: [
             5, 1, 1, 1, 2, 2, 2, 3, 3, 10, 3, 3, 4, 4, 4, 4, 4, 4, 5, 15, 5, 5,
@@ -71,7 +92,7 @@ const hexaCost = {
     },
 };
 
-const hexaColor = {
+const hexaColor: Record<HexacoreType, string> = {
     skill: "text-purple-400",
     mastery: "text-pink-400",
     boost: "text-blue-300",
@@ -79,7 +100,7 @@ const hexaColor = {
 };
 
 function calculateHexaCost(
-    type: "skill" | "mastery" | "boost" | "common",
+    type: HexacoreType,
     currentLevel: number,
     targetLevel: number = 30
 ) {
@@ -92,56 +113,82 @@ function calculateHexaCost(
     return cost;
 }
 
-type hexacoreType = "skill" | "mastery" | "boost" | "common";
+function cloneHexaLevels(levels: HexaLevels): HexaLevels {
+    return Object.fromEntries(
+        hexacoreTypes.map((type) => [type, [...levels[type]]])
+    ) as HexaLevels;
+}
+
+function normalizeHexaLevels(value: unknown, defaults: HexaLevels): HexaLevels {
+    const saved =
+        value && typeof value === "object"
+            ? (value as Partial<Record<HexacoreType, unknown>>)
+            : {};
+
+    return Object.fromEntries(
+        hexacoreTypes.map((type) => {
+            const savedLevels = Array.isArray(saved[type]) ? saved[type] : [];
+
+            return [
+                type,
+                defaults[type].map((fallback, i) => {
+                    const savedLevel = savedLevels[i];
+
+                    return typeof savedLevel === "number" &&
+                        Number.isFinite(savedLevel)
+                        ? savedLevel
+                        : fallback;
+                }),
+            ];
+        })
+    ) as HexaLevels;
+}
+
+function loadHexaLevels(key: string, defaults: HexaLevels) {
+    const saved = localStorage.getItem(key);
+    if (!saved) {
+        return null;
+    }
+
+    try {
+        return normalizeHexaLevels(JSON.parse(saved), defaults);
+    } catch {
+        localStorage.removeItem(key);
+        return cloneHexaLevels(defaults);
+    }
+}
+
+function normalizeInputLevel(value: number, min = 0, max = 30) {
+    if (!Number.isFinite(value)) {
+        return min;
+    }
+
+    return Math.min(max, Math.max(min, Math.trunc(value)));
+}
 
 function Hexa() {
-    const [hexacore, setHexacore] = React.useState<Record<string, number[]>>({
-        // origin
-        skill: [0, 0],
-        mastery: [0, 0, 0, 0],
-        boost: [0, 0, 0, 0],
-        common: [0, 0],
-    });
+    const [hexacore, setHexacore] = React.useState<HexaLevels>(() =>
+        cloneHexaLevels(defaultHexacore)
+    );
 
-    const [hexacostTarget, setHexacostTarget] = React.useState<
-        Record<string, number[]>
-    >({
-        skill: [30, 30],
-        mastery: [30, 30, 30, 30],
-        boost: [30, 30, 30, 30],
-        common: [30, 30],
-    });
+    const [hexacostTarget, setHexacostTarget] = React.useState<HexaLevels>(() =>
+        cloneHexaLevels(defaultHexacostTarget)
+    );
 
     useEffect(() => {
-        const lastCore = localStorage.getItem("hexacore");
+        const lastCore = loadHexaLevels("hexacore", defaultHexacore);
         if (lastCore) {
-            const parsedCore = JSON.parse(lastCore);
-            if (parsedCore.skill.length < 2 || parsedCore.common.length < 2) {
-                localStorage.removeItem("hexacore");
-                parsedCore.skill = [0, 0];
-                parsedCore.mastery = [0, 0, 0, 0];
-                parsedCore.boost = [0, 0, 0, 0];
-                parsedCore.common = [0, 0];
-            }
             // Apply persisted state after hydration to keep server/client markup aligned.
             // eslint-disable-next-line react-hooks/set-state-in-effect
-            setHexacore(parsedCore);
+            setHexacore(lastCore);
         }
 
-        const lastTarget = localStorage.getItem("hexacostTarget");
+        const lastTarget = loadHexaLevels(
+            "hexacostTarget",
+            defaultHexacostTarget
+        );
         if (lastTarget) {
-            const parsedTarget = JSON.parse(lastTarget);
-            if (
-                parsedTarget.skill.length < 2 ||
-                parsedTarget.common.length < 2
-            ) {
-                localStorage.removeItem("hexacostTarget");
-                parsedTarget.skill = [30, 30];
-                parsedTarget.mastery = [30, 30, 30, 30];
-                parsedTarget.boost = [30, 30, 30, 30];
-                parsedTarget.common = [30, 30];
-            }
-            setHexacostTarget(parsedTarget);
+            setHexacostTarget(lastTarget);
         }
     }, []);
 
@@ -152,10 +199,12 @@ function Hexa() {
 
     const totalCost = React.useMemo(() => {
         const cost = { erda: 0, fragment: 0 };
-        Object.entries(hexacore).forEach(([type, levels]) => {
+        hexacoreTypes.forEach((type) => {
+            const levels = hexacore[type];
+
             levels.forEach((level, i) => {
                 const hexaCost = calculateHexaCost(
-                    type as hexacoreType,
+                    type,
                     level,
                     hexacostTarget[type][i]
                 );
@@ -173,41 +222,44 @@ function Hexa() {
                 <div className="relative min-w-[35rem] min-h-[35rem]">
                     <img src="/image/hexamatrix.webp" className="w-full" />
 
-                    {Object.entries(hexacorePositions).map(
-                        ([type, positions]) =>
-                            positions.map((position, i) => (
-                                <input
-                                    type="number"
-                                    className="w-12 text-white text-center absolute bg-transparent"
-                                    style={{
-                                        top: `${position.top}%`,
-                                        left: `${position.left}%`,
-                                    }}
-                                    key={`${type}${i}`}
-                                    id={`${type}${i}`}
-                                    value={hexacore[type][i]}
-                                    onChange={(e) => {
-                                        const value = parseInt(e.target.value);
-                                        setHexacore((prev) => ({
-                                            ...prev,
-                                            [type]: prev[type].map((v, j) =>
-                                                i === j ? value : v
-                                            ),
-                                        }));
-                                    }}
-                                    min={0}
-                                    max={30}
-                                />
-                            ))
+                    {hexacoreTypes.map((type) =>
+                        hexacorePositions[type].map((position, i) => (
+                            <input
+                                type="number"
+                                className="w-12 text-white text-center absolute bg-transparent"
+                                style={{
+                                    top: `${position.top}%`,
+                                    left: `${position.left}%`,
+                                }}
+                                key={`${type}${i}`}
+                                id={`${type}${i}`}
+                                value={hexacore[type][i]}
+                                onChange={(e) => {
+                                    const value = normalizeInputLevel(
+                                        e.target.valueAsNumber
+                                    );
+                                    setHexacore((prev) => ({
+                                        ...prev,
+                                        [type]: prev[type].map((v, j) =>
+                                            i === j ? value : v
+                                        ),
+                                    }));
+                                }}
+                                min={0}
+                                max={30}
+                            />
+                        ))
                     )}
                 </div>
 
                 <div>
-                    {Object.entries(hexacore).map(([type, levels], index) => {
+                    {hexacoreTypes.map((type, index) => {
+                        const levels = hexacore[type];
+
                         return (
                             <InfoBlock
                                 title={`${type} node`}
-                                className={hexaColor[type as hexacoreType]}
+                                className={hexaColor[type]}
                                 key={index}
                             >
                                 <div className="flex">
@@ -218,15 +270,18 @@ function Hexa() {
                                                 <input
                                                     type="number"
                                                     className="w-12 text-white text-center bg-transparent"
-                                                    defaultValue={
+                                                    value={
                                                         hexacostTarget[type][i]
                                                     }
                                                     min={hexacore[type][i]}
                                                     max={30}
                                                     onChange={(e) => {
-                                                        const value = parseInt(
-                                                            e.target.value
-                                                        );
+                                                        const value =
+                                                            normalizeInputLevel(
+                                                                e.target
+                                                                    .valueAsNumber,
+                                                                hexacore[type][i]
+                                                            );
                                                         setHexacostTarget(
                                                             (prev) => ({
                                                                 ...prev,
@@ -246,7 +301,7 @@ function Hexa() {
                                                 <IconLine src="/image/erda.png">
                                                     {
                                                         calculateHexaCost(
-                                                            type as hexacoreType,
+                                                            type,
                                                             level,
                                                             hexacostTarget[
                                                                 type
@@ -257,7 +312,7 @@ function Hexa() {
                                                 <IconLine src="/image/frag.webp">
                                                     {
                                                         calculateHexaCost(
-                                                            type as hexacoreType,
+                                                            type,
                                                             level,
                                                             hexacostTarget[
                                                                 type
