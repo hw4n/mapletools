@@ -388,6 +388,7 @@ const POTENTIAL_LABELS: Record<PotentialRank, string> = {
     unique: "Unique",
     legendary: "Legendary",
 };
+const POTENTIAL_RANK_VALUES = Object.keys(POTENTIAL_LABELS) as PotentialRank[];
 
 const POTENTIAL_BORDER: Record<PotentialRank, string> = {
     none: "border-slate-500",
@@ -475,6 +476,18 @@ type FlameScoreSettings = {
     allStatPercentValue: number;
     damageBossPercentValue: number;
 };
+
+type EquipmentSetupClipboardPayload = {
+    type: "mapletools:equipment-setup";
+    version: 1;
+    jobType: JobType;
+    selectedSlotId: EquipSlotId;
+    flameScoreSettings: FlameScoreSettings;
+    equipmentState: Record<EquipSlotId, EquipmentSlotState>;
+};
+
+const EQUIPMENT_SETUP_CLIPBOARD_TYPE = "mapletools:equipment-setup";
+const EQUIPMENT_SETUP_CLIPBOARD_VERSION = 1;
 
 const clampNumber = (value: number, min: number, max: number) =>
     Math.min(max, Math.max(min, value));
@@ -1178,8 +1191,22 @@ const applyJobDefaultsToFlameSettings = (
     ...JOB_DEFAULT_STATS[jobType],
 });
 
-const isJobType = (value: string | null): value is JobType =>
-    Boolean(value && JOB_TYPES.includes(value as JobType));
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null;
+
+const isJobType = (value: unknown): value is JobType =>
+    typeof value === "string" && JOB_TYPES.includes(value as JobType);
+
+const isEquipSlotId = (value: unknown): value is EquipSlotId =>
+    typeof value === "string" && EQUIP_SLOT_IDS.includes(value as EquipSlotId);
+
+const isPotentialRank = (value: unknown): value is PotentialRank =>
+    typeof value === "string" &&
+    POTENTIAL_RANK_VALUES.includes(value as PotentialRank);
+
+const isFlameStat = (value: unknown): value is (typeof FLAME_STATS)[number] =>
+    typeof value === "string" &&
+    FLAME_STATS.includes(value as (typeof FLAME_STATS)[number]);
 
 const isEquipmentAvailableForJob = (
     item: EquipmentCatalogItem,
@@ -1505,13 +1532,43 @@ const normalizeScoreRatio = (value: unknown, fallback: number) => {
     return Number.isFinite(numericValue) ? Math.max(numericValue, 0) : fallback;
 };
 
-const loadStoredFlameScoreSettings = (
+const normalizeFlameScoreSettings = (
+    rawSettings: Partial<Record<keyof FlameScoreSettings, unknown>> | undefined,
     jobType: JobType
 ): FlameScoreSettings => {
     const defaults = applyJobDefaultsToFlameSettings(
         DEFAULT_FLAME_SCORE_SETTINGS,
         jobType
     );
+    const settings = rawSettings || {};
+
+    return {
+        primaryStat: isCoreStat(settings.primaryStat)
+            ? settings.primaryStat
+            : defaults.primaryStat,
+        secondaryStat: isCoreStat(settings.secondaryStat)
+            ? settings.secondaryStat
+            : defaults.secondaryStat,
+        secondaryStatValue: normalizeScoreRatio(
+            settings.secondaryStatValue,
+            defaults.secondaryStatValue
+        ),
+        attackValue: normalizeScoreRatio(settings.attackValue, defaults.attackValue),
+        allStatPercentValue: normalizeScoreRatio(
+            settings.allStatPercentValue,
+            defaults.allStatPercentValue
+        ),
+        damageBossPercentValue: normalizeScoreRatio(
+            settings.damageBossPercentValue,
+            defaults.damageBossPercentValue
+        ),
+    };
+};
+
+const loadStoredFlameScoreSettings = (
+    jobType: JobType
+): FlameScoreSettings => {
+    const defaults = normalizeFlameScoreSettings(undefined, jobType);
 
     if (typeof window === "undefined") {
         return defaults;
@@ -1526,142 +1583,257 @@ const loadStoredFlameScoreSettings = (
             return defaults;
         }
 
-        const parsedSettings = JSON.parse(rawSettings) as Partial<
-            Record<keyof FlameScoreSettings, unknown>
-        >;
+        const parsedSettings = JSON.parse(rawSettings);
 
-        return {
-            primaryStat: isCoreStat(parsedSettings.primaryStat)
-                ? parsedSettings.primaryStat
-                : defaults.primaryStat,
-            secondaryStat: isCoreStat(parsedSettings.secondaryStat)
-                ? parsedSettings.secondaryStat
-                : defaults.secondaryStat,
-            secondaryStatValue: normalizeScoreRatio(
-                parsedSettings.secondaryStatValue,
-                defaults.secondaryStatValue
-            ),
-            attackValue: normalizeScoreRatio(
-                parsedSettings.attackValue,
-                defaults.attackValue
-            ),
-            allStatPercentValue: normalizeScoreRatio(
-                parsedSettings.allStatPercentValue,
-                defaults.allStatPercentValue
-            ),
-            damageBossPercentValue: normalizeScoreRatio(
-                parsedSettings.damageBossPercentValue,
-                defaults.damageBossPercentValue
-            ),
-        };
+        return normalizeFlameScoreSettings(
+            isRecord(parsedSettings)
+                ? (parsedSettings as Partial<
+                      Record<keyof FlameScoreSettings, unknown>
+                  >)
+                : undefined,
+            jobType
+        );
     } catch {
         return defaults;
     }
 };
 
+const normalizePotentialLines = (lines: unknown, fallbackLines: string[]) =>
+    Array.from({ length: 3 }, (_, index) =>
+        Array.isArray(lines) && typeof lines[index] === "string"
+            ? lines[index]
+            : fallbackLines[index] || ""
+    );
+
+const normalizePotentialBlock = (
+    block: unknown,
+    fallbackBlock: PotentialBlock
+): PotentialBlock => {
+    const rawBlock = isRecord(block) ? block : {};
+
+    return {
+        rank: isPotentialRank(rawBlock.rank)
+            ? rawBlock.rank
+            : fallbackBlock.rank,
+        lines: normalizePotentialLines(rawBlock.lines, fallbackBlock.lines),
+    };
+};
+
+const normalizeFlameLines = (
+    flames: unknown,
+    fallbackFlames: FlameLine[]
+): FlameLine[] =>
+    Array.from({ length: 4 }, (_, index) => {
+        const rawLine =
+            Array.isArray(flames) && isRecord(flames[index])
+                ? flames[index]
+                : {};
+        const fallbackLine = fallbackFlames[index] || {
+            stat: "None",
+            tier: 0,
+            value: 0,
+        };
+        const stat = isFlameStat(rawLine.stat)
+            ? rawLine.stat
+            : fallbackLine.stat;
+
+        return {
+            stat,
+            tier:
+                stat === "None"
+                    ? 0
+                    : clampNumber(
+                          Math.trunc(Number(rawLine.tier ?? fallbackLine.tier) || 0),
+                          0,
+                          7
+                      ),
+            value: normalizeCounterValue(rawLine.value ?? fallbackLine.value),
+        };
+    });
+
+const normalizeEquipmentState = (
+    jobType: JobType = DEFAULT_JOB_TYPE,
+    rawState?: unknown
+): Record<EquipSlotId, EquipmentSlotState> => {
+    const initialState = createInitialState(jobType);
+    const parsedState = isRecord(rawState) ? rawState : {};
+
+    return Object.fromEntries(
+        EQUIP_SLOT_IDS.map((slotId) => {
+            const storedSlot = isRecord(parsedState[slotId])
+                ? parsedState[slotId]
+                : {};
+            const fallbackSlot = initialState[slotId];
+            const kind = slotKind(slotId);
+            const storedItemId =
+                typeof storedSlot.itemId === "string" ? storedSlot.itemId : "";
+            const storedCatalogItem = storedItemId
+                ? getCatalogItem(kind, storedItemId, jobType)
+                : undefined;
+            const storedItemLevel = Number(storedSlot.itemLevel);
+            const itemName =
+                (typeof storedSlot.itemName === "string" &&
+                    storedSlot.itemName) ||
+                storedCatalogItem?.name ||
+                fallbackSlot.itemName;
+            const itemLevel =
+                storedCatalogItem?.level ||
+                (Number.isFinite(storedItemLevel)
+                    ? storedItemLevel
+                    : fallbackSlot.itemLevel);
+            const itemSetType =
+                storedCatalogItem?.setType ||
+                (typeof storedSlot.itemSetType === "string" &&
+                    storedSlot.itemSetType) ||
+                fallbackSlot.itemSetType;
+            const starForceCap = getSlotStarForceCap(
+                {
+                    itemName,
+                    itemLevel,
+                    itemSetType,
+                },
+                storedCatalogItem
+            );
+
+            return [
+                slotId,
+                {
+                    itemId: storedCatalogItem?.id || storedItemId || fallbackSlot.itemId,
+                    itemName,
+                    itemImage:
+                        storedCatalogItem?.imgPath ||
+                        (typeof storedSlot.itemImage === "string" &&
+                            storedSlot.itemImage) ||
+                        fallbackSlot.itemImage,
+                    itemLevel,
+                    itemSetType,
+                    stars: clampNumber(
+                        Math.trunc(Number(storedSlot.stars ?? fallbackSlot.stars) || 0),
+                        0,
+                        starForceCap
+                    ),
+                    mesoSpent: normalizeCounterValue(
+                        storedSlot.mesoSpent ?? fallbackSlot.mesoSpent
+                    ),
+                    destructionCount: normalizeCounterValue(
+                        storedSlot.destructionCount ??
+                            fallbackSlot.destructionCount
+                    ),
+                    potential: normalizePotentialBlock(
+                        storedSlot.potential,
+                        fallbackSlot.potential
+                    ),
+                    bonusPotential: normalizePotentialBlock(
+                        storedSlot.bonusPotential,
+                        fallbackSlot.bonusPotential
+                    ),
+                    flames: normalizeFlameLines(
+                        storedSlot.flames,
+                        fallbackSlot.flames
+                    ),
+                },
+            ];
+        })
+    ) as Record<EquipSlotId, EquipmentSlotState>;
+};
+
 const loadStoredState = (
     jobType: JobType = DEFAULT_JOB_TYPE
 ): Record<EquipSlotId, EquipmentSlotState> => {
-    const initialState = createInitialState(jobType);
-
     if (typeof window === "undefined") {
-        return initialState;
+        return normalizeEquipmentState(jobType);
     }
 
     try {
         const rawState = window.localStorage.getItem("equipmentSetupTracker");
         if (!rawState) {
-            return initialState;
+            return normalizeEquipmentState(jobType);
         }
 
-        const parsedState = JSON.parse(rawState) as Partial<
-            Record<EquipSlotId, Partial<EquipmentSlotState>>
-        >;
-
-        return Object.fromEntries(
-            EQUIP_SLOT_IDS.map((slotId) => {
-                const storedSlot = parsedState[slotId] || {};
-                const fallbackSlot = initialState[slotId];
-                const kind = slotKind(slotId);
-                const storedCatalogItem = storedSlot.itemId
-                    ? getCatalogItem(kind, storedSlot.itemId, jobType)
-                    : undefined;
-                const itemName =
-                    storedSlot.itemName ||
-                    storedCatalogItem?.name ||
-                    fallbackSlot.itemName;
-                const itemLevel =
-                    storedCatalogItem?.level ||
-                    storedSlot.itemLevel ||
-                    fallbackSlot.itemLevel;
-                const itemSetType =
-                    storedCatalogItem?.setType ||
-                    storedSlot.itemSetType ||
-                    fallbackSlot.itemSetType;
-                const starForceCap = getSlotStarForceCap(
-                    {
-                        itemName,
-                        itemLevel,
-                        itemSetType,
-                    },
-                    storedCatalogItem
-                );
-
-                return [
-                    slotId,
-                    {
-                        ...fallbackSlot,
-                        ...storedSlot,
-                        itemId:
-                            storedCatalogItem?.id ||
-                            storedSlot.itemId ||
-                            fallbackSlot.itemId,
-                        itemName,
-                        itemImage:
-                            storedCatalogItem?.imgPath ||
-                            storedSlot.itemImage ||
-                            fallbackSlot.itemImage,
-                        itemLevel,
-                        itemSetType,
-                        stars: clampNumber(
-                            Math.trunc(
-                                Number(storedSlot.stars ?? fallbackSlot.stars) ||
-                                    0
-                            ),
-                            0,
-                            starForceCap
-                        ),
-                        mesoSpent: normalizeCounterValue(
-                            storedSlot.mesoSpent ?? fallbackSlot.mesoSpent
-                        ),
-                        destructionCount: normalizeCounterValue(
-                            storedSlot.destructionCount ??
-                                fallbackSlot.destructionCount
-                        ),
-                        potential: {
-                            ...fallbackSlot.potential,
-                            ...storedSlot.potential,
-                            lines:
-                                storedSlot.potential?.lines?.slice(0, 3) ||
-                                fallbackSlot.potential.lines,
-                        },
-                        bonusPotential: {
-                            ...fallbackSlot.bonusPotential,
-                            ...storedSlot.bonusPotential,
-                            lines:
-                                storedSlot.bonusPotential?.lines?.slice(0, 3) ||
-                                fallbackSlot.bonusPotential.lines,
-                        },
-                        flames:
-                            storedSlot.flames?.slice(0, 4) ||
-                            fallbackSlot.flames,
-                    },
-                ];
-            })
-        ) as Record<EquipSlotId, EquipmentSlotState>;
+        return normalizeEquipmentState(jobType, JSON.parse(rawState));
     } catch {
-        return initialState;
+        return normalizeEquipmentState(jobType);
     }
+};
+
+const createEquipmentSetupClipboardText = (
+    jobType: JobType,
+    selectedSlotId: EquipSlotId,
+    flameScoreSettings: FlameScoreSettings,
+    equipmentState: Record<EquipSlotId, EquipmentSlotState>
+) =>
+    JSON.stringify(
+        {
+            type: EQUIPMENT_SETUP_CLIPBOARD_TYPE,
+            version: EQUIPMENT_SETUP_CLIPBOARD_VERSION,
+            jobType,
+            selectedSlotId,
+            flameScoreSettings,
+            equipmentState,
+        } satisfies EquipmentSetupClipboardPayload,
+        null,
+        2
+    );
+
+const parseEquipmentSetupClipboardText = (text: string) => {
+    const parsed = JSON.parse(text);
+
+    if (
+        !isRecord(parsed) ||
+        parsed.type !== EQUIPMENT_SETUP_CLIPBOARD_TYPE ||
+        parsed.version !== EQUIPMENT_SETUP_CLIPBOARD_VERSION ||
+        !isJobType(parsed.jobType)
+    ) {
+        throw new Error("Clipboard does not contain an equipment setup.");
+    }
+
+    const jobType = parsed.jobType;
+
+    return {
+        jobType,
+        selectedSlotId: isEquipSlotId(parsed.selectedSlotId)
+            ? parsed.selectedSlotId
+            : "weapon",
+        flameScoreSettings: normalizeFlameScoreSettings(
+            isRecord(parsed.flameScoreSettings)
+                ? (parsed.flameScoreSettings as Partial<
+                      Record<keyof FlameScoreSettings, unknown>
+                  >)
+                : undefined,
+            jobType
+        ),
+        equipmentState: normalizeEquipmentState(jobType, parsed.equipmentState),
+    };
+};
+
+const writeClipboardText = async (text: string) => {
+    if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return;
+    }
+
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+
+    const didCopy = document.execCommand("copy");
+    document.body.removeChild(textarea);
+
+    if (!didCopy) {
+        throw new Error("Clipboard write failed.");
+    }
+};
+
+const readClipboardText = async () => {
+    if (!navigator.clipboard?.readText) {
+        throw new Error("Clipboard read is unavailable.");
+    }
+
+    return navigator.clipboard.readText();
 };
 
 function EquipmentSetup() {
@@ -1676,6 +1848,7 @@ function EquipmentSetup() {
             createInitialState
         );
     const [isLoaded, setIsLoaded] = React.useState(false);
+    const [setupTransferStatus, setSetupTransferStatus] = React.useState("");
 
     React.useEffect(() => {
         const storedJobType = loadStoredJobType();
@@ -1702,6 +1875,19 @@ function EquipmentSetup() {
             JSON.stringify(flameScoreSettings)
         );
     }, [equipmentState, flameScoreSettings, isLoaded, selectedJobType]);
+
+    React.useEffect(() => {
+        if (!setupTransferStatus) {
+            return;
+        }
+
+        const timeoutId = window.setTimeout(
+            () => setSetupTransferStatus(""),
+            2500
+        );
+
+        return () => window.clearTimeout(timeoutId);
+    }, [setupTransferStatus]);
 
     const selectedSlot = equipmentState[selectedSlotId];
     const selectedKind = slotKind(selectedSlotId);
@@ -1798,11 +1984,46 @@ function EquipmentSetup() {
         setSelectedSlotId("weapon");
     };
 
+    const copyEquipmentSetup = async () => {
+        try {
+            await writeClipboardText(
+                createEquipmentSetupClipboardText(
+                    selectedJobType,
+                    selectedSlotId,
+                    flameScoreSettings,
+                    equipmentState
+                )
+            );
+            setSetupTransferStatus("Setup copied");
+        } catch {
+            setSetupTransferStatus("Copy failed");
+        }
+    };
+
+    const pasteEquipmentSetup = async () => {
+        try {
+            const importedSetup = parseEquipmentSetupClipboardText(
+                await readClipboardText()
+            );
+
+            setSelectedJobType(importedSetup.jobType);
+            setFlameScoreSettings(importedSetup.flameScoreSettings);
+            setEquipmentState(importedSetup.equipmentState);
+            setSelectedSlotId(importedSetup.selectedSlotId);
+            setSetupTransferStatus("Setup pasted");
+        } catch {
+            setSetupTransferStatus("Paste failed");
+        }
+    };
+
     return (
         <InfoBlock title="equipment setup" src="/image/equipment/icons/weapon.png">
             <JobTypeSelector
                 selectedJobType={selectedJobType}
+                setupTransferStatus={setupTransferStatus}
                 onChange={updateJobType}
+                onCopySetup={copyEquipmentSetup}
+                onPasteSetup={pasteEquipmentSetup}
             />
 
             <div className="grid gap-4 xl:grid-cols-[minmax(250px,0.9fr)_minmax(480px,1.15fr)_minmax(430px,2fr)]">
@@ -2334,34 +2555,65 @@ function SelectedEquipmentPanel({
 
 function JobTypeSelector({
     selectedJobType,
+    setupTransferStatus,
     onChange,
+    onCopySetup,
+    onPasteSetup,
 }: Readonly<{
     selectedJobType: JobType;
+    setupTransferStatus: string;
     onChange: (jobType: JobType) => void;
+    onCopySetup: () => void;
+    onPasteSetup: () => void;
 }>) {
     return (
-        <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
-            <div className="font-bold uppercase text-slate-200">Job filter</div>
-            <div className="flex flex-wrap gap-1 rounded-md border border-slate-700 bg-slate-900 p-1">
-                {JOB_TYPES.map((jobType) => {
-                    const isSelected = jobType === selectedJobType;
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 text-sm">
+            <div className="flex flex-wrap items-center gap-2">
+                <div className="font-bold uppercase text-slate-200">
+                    Job filter
+                </div>
+                <div className="flex flex-wrap gap-1 rounded-md border border-slate-700 bg-slate-900 p-1">
+                    {JOB_TYPES.map((jobType) => {
+                        const isSelected = jobType === selectedJobType;
 
-                    return (
-                        <button
-                            type="button"
-                            className={`rounded px-3 py-1.5 text-sm transition-colors ${
-                                isSelected
-                                    ? "bg-primary text-slate-950"
-                                    : "text-slate-300 hover:bg-slate-800 hover:text-white"
-                            }`}
-                            aria-pressed={isSelected}
-                            onClick={() => onChange(jobType)}
-                            key={jobType}
-                        >
-                            {JOB_LABELS[jobType]}
-                        </button>
-                    );
-                })}
+                        return (
+                            <button
+                                type="button"
+                                className={`rounded px-3 py-1.5 text-sm transition-colors ${
+                                    isSelected
+                                        ? "bg-primary text-slate-950"
+                                        : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                                }`}
+                                aria-pressed={isSelected}
+                                onClick={() => onChange(jobType)}
+                                key={jobType}
+                            >
+                                {JOB_LABELS[jobType]}
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+                {setupTransferStatus ? (
+                    <span className="text-xs text-slate-400">
+                        {setupTransferStatus}
+                    </span>
+                ) : null}
+                <button
+                    type="button"
+                    className="rounded-md border border-slate-600 px-3 py-1.5 text-sm text-slate-200 transition-colors hover:border-primary hover:text-primary"
+                    onClick={onCopySetup}
+                >
+                    Copy Setup
+                </button>
+                <button
+                    type="button"
+                    className="rounded-md border border-slate-600 px-3 py-1.5 text-sm text-slate-200 transition-colors hover:border-primary hover:text-primary"
+                    onClick={onPasteSetup}
+                >
+                    Paste Setup
+                </button>
             </div>
         </div>
     );
@@ -2384,10 +2636,10 @@ function FlameTierButtonGroup({
                 return (
                     <button
                         type="button"
-                        className={`flex h-10 min-w-0 flex-1 items-center justify-center border border-slate-600 bg-slate-950 px-2 text-sm font-semibold leading-none outline-none transition-colors hover:border-primary hover:text-primary focus-visible:border-primary ${
+                        className={`flex h-10 min-w-0 flex-1 items-center justify-center border px-2 text-sm font-semibold leading-none outline-none transition-colors focus-visible:relative focus-visible:z-10 focus-visible:border-yellow-200 ${
                             isSelected
-                                ? "bg-primary text-slate-950 hover:text-slate-950"
-                                : "text-slate-300"
+                                ? "border-yellow-200 bg-yellow-300 text-slate-950 shadow-[0_0_0_2px_rgba(250,204,21,0.35)] hover:bg-yellow-200"
+                                : "border-slate-700 bg-slate-950 text-slate-400 hover:border-primary hover:text-primary"
                         }`}
                         aria-pressed={isSelected}
                         onClick={() => onChange(tier)}
@@ -2523,9 +2775,8 @@ function RatioInput({
     onChange: (value: number) => void;
 }>) {
     return (
-        <label className="grid grid-cols-[minmax(0,1fr)_36px] items-center gap-2">
+        <label className="grid gap-1">
             <span className="text-xs text-slate-400">{label}</span>
-            <span className="text-left text-xs text-slate-500">main</span>
             <input
                 type="number"
                 min={0}
