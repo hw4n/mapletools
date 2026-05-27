@@ -3273,8 +3273,10 @@ function EnhancementMemoPanel({
         "mx-auto mt-3 grid w-full gap-2 rounded-md border border-slate-700 bg-slate-950 p-3 sm:grid-cols-[112px_minmax(0,1fr)_272px] sm:items-center";
     const inputClass =
         "h-10 min-w-0 rounded-md border border-slate-600 bg-slate-900 px-2 text-right text-sm tabular-nums text-white outline-none focus:border-primary";
-    const counterButtonClass =
-        "h-8 rounded-md border border-slate-600 px-2 text-xs tabular-nums text-slate-200 hover:border-primary hover:text-primary";
+    const counterButtonBaseClass =
+        "h-8 rounded-md border px-2 text-xs tabular-nums transition-colors";
+    const decrementButtonClass = `${counterButtonBaseClass} border-red-500/60 text-red-200 hover:border-red-300 hover:bg-red-500/15`;
+    const incrementButtonClass = `${counterButtonBaseClass} border-emerald-500/60 text-emerald-200 hover:border-emerald-300 hover:bg-emerald-500/15`;
 
     return (
         <>
@@ -3296,22 +3298,7 @@ function EnhancementMemoPanel({
                     {MESO_COUNTER_STEPS.map((step) => (
                         <button
                             type="button"
-                            className={counterButtonClass}
-                            onClick={() =>
-                                updateMesoSpent(
-                                    selectedSlot.mesoSpent + step.value
-                                )
-                            }
-                            aria-label={`Add ${step.label} mesos`}
-                            key={`add-${step.label}`}
-                        >
-                            +{step.label}
-                        </button>
-                    ))}
-                    {MESO_COUNTER_STEPS.map((step) => (
-                        <button
-                            type="button"
-                            className={counterButtonClass}
+                            className={decrementButtonClass}
                             onClick={() =>
                                 updateMesoSpent(
                                     selectedSlot.mesoSpent - step.value
@@ -3321,6 +3308,21 @@ function EnhancementMemoPanel({
                             key={`subtract-${step.label}`}
                         >
                             -{step.label}
+                        </button>
+                    ))}
+                    {MESO_COUNTER_STEPS.map((step) => (
+                        <button
+                            type="button"
+                            className={incrementButtonClass}
+                            onClick={() =>
+                                updateMesoSpent(
+                                    selectedSlot.mesoSpent + step.value
+                                )
+                            }
+                            aria-label={`Add ${step.label} mesos`}
+                            key={`add-${step.label}`}
+                        >
+                            +{step.label}
                         </button>
                     ))}
                 </span>
@@ -3342,18 +3344,7 @@ function EnhancementMemoPanel({
                 <span className="grid w-full grid-cols-2 gap-1 justify-self-end">
                     <button
                         type="button"
-                        className={counterButtonClass}
-                        onClick={() =>
-                            updateDestructionCount(
-                                selectedSlot.destructionCount + 1
-                            )
-                        }
-                    >
-                        +1
-                    </button>
-                    <button
-                        type="button"
-                        className={counterButtonClass}
+                        className={decrementButtonClass}
                         onClick={() =>
                             updateDestructionCount(
                                 selectedSlot.destructionCount - 1
@@ -3361,6 +3352,17 @@ function EnhancementMemoPanel({
                         }
                     >
                         -1
+                    </button>
+                    <button
+                        type="button"
+                        className={incrementButtonClass}
+                        onClick={() =>
+                            updateDestructionCount(
+                                selectedSlot.destructionCount + 1
+                            )
+                        }
+                    >
+                        +1
                     </button>
                 </span>
             </fieldset>
