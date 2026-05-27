@@ -2,6 +2,7 @@
 
 import React from "react";
 import InfoBlock from "./InfoBlock";
+import { ButtonGroup } from "./ui/ButtonGroup";
 import equipmentItems from "../data/equipment-items.json";
 import equipmentSetEffects from "../data/equipment-set-effects.json";
 
@@ -38,8 +39,6 @@ const EQUIP_GRID = [
     "heart",
 ] as const;
 
-const EQUIP_SLOT_IDS = EQUIP_GRID.filter(Boolean) as EquipSlotId[];
-
 type EquipSlotId =
     | "ring-1"
     | "ring-2"
@@ -66,6 +65,51 @@ type EquipSlotId =
     | "shoes"
     | "android"
     | "heart";
+
+type EquipmentSlotLayout = {
+    x: number;
+    y: number;
+};
+
+const EQUIP_TAB_SIZE = { width: 214, height: 256 } as const;
+const EQUIP_SLOT_SIZE = 38;
+
+const EQUIP_SLOT_IDS = EQUIP_GRID.filter(Boolean) as EquipSlotId[];
+
+const EQUIP_SLOT_LAYOUTS: Record<EquipSlotId, EquipmentSlotLayout> = {
+    "ring-1": { x: 6, y: 6 },
+    hat: { x: 88, y: 6 },
+    emblem: { x: 170, y: 6 },
+    "ring-2": { x: 6, y: 47 },
+    "pendant-1": { x: 47, y: 47 },
+    face: { x: 88, y: 47 },
+    badge: { x: 170, y: 47 },
+    "ring-3": { x: 6, y: 88 },
+    "pendant-2": { x: 47, y: 88 },
+    eye: { x: 88, y: 88 },
+    earring: { x: 129, y: 88 },
+    medal: { x: 170, y: 88 },
+    "ring-4": { x: 6, y: 129 },
+    weapon: { x: 47, y: 129 },
+    top: { x: 88, y: 129 },
+    shoulder: { x: 129, y: 129 },
+    secondary: { x: 170, y: 129 },
+    pocket: { x: 6, y: 170 },
+    belt: { x: 47, y: 170 },
+    bottom: { x: 88, y: 170 },
+    gloves: { x: 129, y: 170 },
+    cape: { x: 170, y: 170 },
+    shoes: { x: 88, y: 211 },
+    android: { x: 129, y: 211 },
+    heart: { x: 170, y: 211 },
+};
+
+const getEquipmentSlotLayoutStyle = (layout: EquipmentSlotLayout) => ({
+    left: `${(layout.x / EQUIP_TAB_SIZE.width) * 100}%`,
+    top: `${(layout.y / EQUIP_TAB_SIZE.height) * 100}%`,
+    width: `${(EQUIP_SLOT_SIZE / EQUIP_TAB_SIZE.width) * 100}%`,
+    height: `${(EQUIP_SLOT_SIZE / EQUIP_TAB_SIZE.height) * 100}%`,
+});
 
 type EquipKind =
     | "ring"
@@ -316,12 +360,26 @@ const SET_EFFECT_EQUIP_TYPES = EQUIPMENT_CATALOG.reduce(
 
 const MAX_STAR_FORCE = 30;
 const STAR_GROUP_SIZE = 5;
-const MESO_COUNTER_STEP = 100_000_000;
+const STAR_ROW_SIZE = 15;
+const MESO_COUNTER_STEPS = [
+    { label: "100B", value: 100_000_000_000 },
+    { label: "10B", value: 10_000_000_000 },
+    { label: "1B", value: 1_000_000_000 },
+    { label: "100M", value: 100_000_000 },
+];
 const MAX_TRACKED_VALUE = Number.MAX_SAFE_INTEGER;
 const NUMBER_FORMATTER = new Intl.NumberFormat("en-US");
 
-const POTENTIAL_RANKS = ["none", "rare", "epic", "unique", "legendary"] as const;
-type PotentialRank = (typeof POTENTIAL_RANKS)[number];
+const STAR_FORCE_LEVEL_CAPS = [
+    { minLevel: 0, maxLevel: 94, normal: 5, superior: 3 },
+    { minLevel: 95, maxLevel: 107, normal: 8, superior: 5 },
+    { minLevel: 108, maxLevel: 117, normal: 10, superior: 8 },
+    { minLevel: 118, maxLevel: 127, normal: 15, superior: 10 },
+    { minLevel: 128, maxLevel: 137, normal: 20, superior: 12 },
+    { minLevel: 138, maxLevel: Number.POSITIVE_INFINITY, normal: 30, superior: 15 },
+];
+
+type PotentialRank = "none" | "rare" | "epic" | "unique" | "legendary";
 
 const POTENTIAL_LABELS: Record<PotentialRank, string> = {
     none: "None",
@@ -381,7 +439,8 @@ const POTENTIAL_RANK_ORDER: Exclude<PotentialRank, "none">[] = [
 ];
 
 const FLAME_LINE_GRID_CLASS =
-    "grid grid-cols-[minmax(128px,1fr)_72px_96px] items-center gap-2";
+    "grid grid-cols-[minmax(128px,1fr)_minmax(238px,auto)_96px] items-center gap-2";
+const FLAME_TIERS = [1, 2, 3, 4, 5, 6, 7] as const;
 
 type PotentialBlock = {
     rank: PotentialRank;
@@ -423,10 +482,45 @@ const clampNumber = (value: number, min: number, max: number) =>
 const normalizeCounterValue = (value: unknown) =>
     clampNumber(Math.trunc(Number(value) || 0), 0, MAX_TRACKED_VALUE);
 
+const parseFormattedCounterValue = (value: string) =>
+    normalizeCounterValue(value.replace(/[^\d]/g, ""));
+
 const formatInteger = (value: number) => NUMBER_FORMATTER.format(value);
 
 const formatScore = (value: number) =>
     Number.isInteger(value) ? formatInteger(value) : value.toFixed(1);
+
+const isSuperiorEquipment = (
+    item?: EquipmentCatalogItem,
+    slot?: Pick<EquipmentSlotState, "itemName" | "itemSetType">
+) => {
+    const itemName = `${item?.name || slot?.itemName || ""}`.toLowerCase();
+    const setType = item?.setType || slot?.itemSetType || "";
+    const itemId = `${item?.id || ""}`.toLowerCase();
+
+    return (
+        setType === "superiorGollux" ||
+        itemName.includes("superior") ||
+        itemName.includes("tyrant") ||
+        itemId.includes("tyrant")
+    );
+};
+
+const getStarForceCap = (level: number, isSuperior: boolean) => {
+    const normalizedLevel = Math.max(0, Math.trunc(Number(level) || 0));
+    const rule =
+        STAR_FORCE_LEVEL_CAPS.find(
+            ({ minLevel, maxLevel }) =>
+                normalizedLevel >= minLevel && normalizedLevel <= maxLevel
+        ) || STAR_FORCE_LEVEL_CAPS[0];
+
+    return isSuperior ? rule.superior : rule.normal;
+};
+
+const getSlotStarForceCap = (
+    slot: Pick<EquipmentSlotState, "itemLevel" | "itemName" | "itemSetType">,
+    item?: EquipmentCatalogItem
+) => getStarForceCap(slot.itemLevel, isSuperiorEquipment(item, slot));
 
 const getPotentialLevelBucket = (level: number) => {
     if (level >= 160) {
@@ -458,6 +552,27 @@ const getPotentialPercentValues = (rank: PotentialRank, level: number) => {
         .sort((a, b) => b - a);
 };
 
+const getAllStatPotentialPercentValues = (
+    rank: PotentialRank,
+    level: number
+) => {
+    if (rank === "none") {
+        return [];
+    }
+
+    const rankIndex = POTENTIAL_RANK_ORDER.indexOf(rank);
+    const levelBucket = getPotentialLevelBucket(level);
+
+    return POTENTIAL_RANK_ORDER.slice(0, rankIndex + 1)
+        .map((_, index) => {
+            const sourceRank =
+                POTENTIAL_RANK_ORDER[Math.max(0, index - 1)];
+            return POTENTIAL_PERCENT_VALUES[sourceRank][levelBucket];
+        })
+        .filter((value, index, values) => values.indexOf(value) === index)
+        .sort((a, b) => b - a);
+};
+
 const WEAPON_POTENTIAL_KINDS = new Set<EquipKind>([
     "weapon",
     "secondary",
@@ -467,17 +582,26 @@ const WEAPON_POTENTIAL_KINDS = new Set<EquipKind>([
 const isWeaponPotentialKind = (kind: EquipKind) =>
     WEAPON_POTENTIAL_KINDS.has(kind);
 
+const getAttackStatLabel = (jobType: JobType) =>
+    jobType === "magician" ? "MATT" : "ATT";
+
 const getPotentialMetricLabel = (
     kind: EquipKind,
-    settings: FlameScoreSettings
-) => (isWeaponPotentialKind(kind) ? "ATT/MATT/Boss/IED" : `${settings.primaryStat}/All`);
+    settings: FlameScoreSettings,
+    jobType: JobType
+) =>
+    isWeaponPotentialKind(kind)
+        ? `${getAttackStatLabel(jobType)}/Boss/IED`
+        : `${settings.primaryStat}/All`;
 
-const getWeaponPotentialSuggestions = (level: number, rank: PotentialRank) => {
+const getWeaponPotentialSuggestions = (
+    level: number,
+    rank: PotentialRank,
+    jobType: JobType
+) => {
     const values = getPotentialPercentValues(rank, level);
-    const attackSuggestions = values.flatMap((value) => [
-        `ATT +${value}%`,
-        `MATT +${value}%`,
-    ]);
+    const attackLabel = getAttackStatLabel(jobType);
+    const attackSuggestions = values.map((value) => `${attackLabel} +${value}%`);
 
     return [
         ...attackSuggestions,
@@ -494,25 +618,28 @@ const getPotentialSuggestions = (
     level: number,
     settings: FlameScoreSettings,
     kind: EquipKind,
-    rank: PotentialRank
+    rank: PotentialRank,
+    jobType: JobType
 ) => {
     if (rank === "none") {
         return [];
     }
 
     if (isWeaponPotentialKind(kind)) {
-        return getWeaponPotentialSuggestions(level, rank);
+        return getWeaponPotentialSuggestions(level, rank, jobType);
     }
 
     const values = getPotentialPercentValues(rank, level);
+    const allStatValues = getAllStatPotentialPercentValues(rank, level);
+    const attackLabel = getAttackStatLabel(jobType);
     const percentSuggestions = values.flatMap((value) => [
         `${settings.primaryStat} +${value}%`,
-        `All Stats +${value}%`,
     ]);
 
     return [
         ...percentSuggestions,
-        ...values.flatMap((value) => [`ATT +${value}%`, `MATT +${value}%`]),
+        ...allStatValues.map((value) => `All Stats +${value}%`),
+        ...values.map((value) => `${attackLabel} +${value}%`),
         "Boss Damage +40%",
         "Ignore DEF +40%",
         "Critical Damage +8%",
@@ -523,60 +650,350 @@ const getPotentialSuggestions = (
     ];
 };
 
-const parsePotentialPercentValue = (
-    line: string,
-    settings: FlameScoreSettings,
-    kind: EquipKind
-) => {
-    const normalizedLine = line.toLowerCase();
-    const percentMatch = normalizedLine.match(/([+-]?\d+(?:\.\d+)?)\s*%/);
+type PotentialStatTotals = {
+    attackPercent: number;
+    bossPercent: number;
+    ignorePercent: number;
+    generalPercent: number;
+};
 
+const emptyPotentialStatTotals = (): PotentialStatTotals => ({
+    attackPercent: 0,
+    bossPercent: 0,
+    ignorePercent: 0,
+    generalPercent: 0,
+});
+
+const getFirstPotentialPercentValue = (line: string) => {
+    const percentMatch = line.match(/([+-]?\d+(?:\.\d+)?)\s*%/);
     if (!percentMatch) {
         return 0;
     }
 
     const value = Number(percentMatch[1]);
-    if (!Number.isFinite(value)) {
-        return 0;
+    return Number.isFinite(value) ? value : 0;
+};
+
+const getShortPotentialTokenTotal = (line: string, token: "b" | "i") => {
+    const pattern = new RegExp(
+        `(?:^|[\\s,+/])${token}\\s*([+-]?\\d+(?:\\.\\d+)?)\\s*%`,
+        "gi"
+    );
+    let total = 0;
+
+    for (const match of line.matchAll(pattern)) {
+        const value = Number(match[1]);
+        if (Number.isFinite(value)) {
+            total += value;
+        }
     }
 
-    if (isWeaponPotentialKind(kind)) {
-        const isAttackLine =
-            /\b(?:att|matt|attack|magic attack)\b/.test(normalizedLine) ||
-            normalizedLine.includes("공격력") ||
-            normalizedLine.includes("마력");
-        const isBossLine =
-            normalizedLine.includes("boss") || normalizedLine.includes("보스");
-        const isIgnoreLine =
-            normalizedLine.includes("ignore") ||
-            normalizedLine.includes("ied") ||
-            normalizedLine.includes("방무") ||
-            normalizedLine.includes("방어율");
+    return total;
+};
 
-        return isAttackLine || isBossLine || isIgnoreLine ? value : 0;
+const isAttackPotentialLine = (normalizedLine: string) =>
+    /\b(?:att|matt|attack|magic attack)\b/.test(normalizedLine) ||
+    normalizedLine.includes("공격력") ||
+    normalizedLine.includes("마력");
+
+const isBossPotentialLine = (normalizedLine: string) =>
+    normalizedLine.includes("boss") || normalizedLine.includes("보스");
+
+const isIgnorePotentialLine = (normalizedLine: string) =>
+    normalizedLine.includes("ignore") ||
+    normalizedLine.includes("ied") ||
+    normalizedLine.includes("방무") ||
+    normalizedLine.includes("방어율");
+
+const isAllStatPotentialLine = (normalizedLine: string) =>
+    normalizedLine.includes("all stat") ||
+    normalizedLine.includes("allstat") ||
+    normalizedLine.includes("all stats") ||
+    normalizedLine.includes("올스탯") ||
+    normalizedLine.includes("올스텟");
+
+const parsePotentialLineStats = (
+    line: string,
+    settings: FlameScoreSettings,
+    kind: EquipKind
+): PotentialStatTotals => {
+    const totals = emptyPotentialStatTotals();
+    const normalizedLine = line.toLowerCase();
+    const value = getFirstPotentialPercentValue(normalizedLine);
+
+    if (isWeaponPotentialKind(kind)) {
+        const shortBossTotal = getShortPotentialTokenTotal(normalizedLine, "b");
+        const shortIgnoreTotal = getShortPotentialTokenTotal(
+            normalizedLine,
+            "i"
+        );
+        const isAttackLine = isAttackPotentialLine(normalizedLine);
+        const isBossLine = isBossPotentialLine(normalizedLine);
+        const isIgnoreLine = isIgnorePotentialLine(normalizedLine);
+
+        if (isBossLine) {
+            totals.bossPercent += value;
+        } else {
+            totals.bossPercent += shortBossTotal;
+        }
+
+        if (isIgnoreLine) {
+            totals.ignorePercent += value;
+        } else {
+            totals.ignorePercent += shortIgnoreTotal;
+        }
+
+        if (isAttackLine || /^\s*[+-]?\d+(?:\.\d+)?\s*%/.test(line)) {
+            totals.attackPercent += value;
+        }
+
+        return totals;
     }
 
     const primary = settings.primaryStat.toLowerCase();
     const isPrimaryStatLine = normalizedLine.includes(primary);
-    const isAllStatLine =
-        normalizedLine.includes("all stat") ||
-        normalizedLine.includes("allstat") ||
-        normalizedLine.includes("all stats") ||
-        normalizedLine.includes("올스탯") ||
-        normalizedLine.includes("올스텟");
+    const isAllStatLine = isAllStatPotentialLine(normalizedLine);
 
-    return isPrimaryStatLine || isAllStatLine ? value : 0;
+    if (isPrimaryStatLine || isAllStatLine) {
+        totals.generalPercent = value;
+    }
+
+    return totals;
 };
 
-const calculatePotentialPercent = (
+const addPotentialStatTotals = (
+    total: PotentialStatTotals,
+    next: PotentialStatTotals
+) => ({
+    attackPercent: total.attackPercent + next.attackPercent,
+    bossPercent: total.bossPercent + next.bossPercent,
+    ignorePercent: total.ignorePercent + next.ignorePercent,
+    generalPercent: total.generalPercent + next.generalPercent,
+});
+
+const calculatePotentialStats = (
+    lines: string[],
+    settings: FlameScoreSettings,
+    kind: EquipKind
+) =>
+    lines.reduce(
+        (total, line) =>
+            addPotentialStatTotals(
+                total,
+                parsePotentialLineStats(line, settings, kind)
+            ),
+        emptyPotentialStatTotals()
+    );
+
+const calculateSlotPotentialStats = (
     slot: EquipmentSlotState,
     settings: FlameScoreSettings,
     kind: EquipKind
 ) =>
-    [...slot.potential.lines, ...slot.bonusPotential.lines].reduce(
-        (total, line) =>
-            total + parsePotentialPercentValue(line, settings, kind),
-        0
+    calculatePotentialStats(
+        [...slot.potential.lines, ...slot.bonusPotential.lines],
+        settings,
+        kind
+    );
+
+const formatPotentialStats = (
+    stats: PotentialStatTotals,
+    kind: EquipKind
+) => {
+    if (!isWeaponPotentialKind(kind)) {
+        return `${formatScore(stats.generalPercent)}%`;
+    }
+
+    const parts = [];
+    if (stats.attackPercent > 0) {
+        parts.push(`${formatScore(stats.attackPercent)}%`);
+    }
+    if (stats.bossPercent > 0) {
+        parts.push(`B${formatScore(stats.bossPercent)}%`);
+    }
+    if (stats.ignorePercent > 0) {
+        parts.push(`I${formatScore(stats.ignorePercent)}%`);
+    }
+
+    return parts.length > 0 ? parts.join(" ") : "0%";
+};
+
+const getPotentialGridBadges = (
+    stats: PotentialStatTotals,
+    kind: EquipKind
+) => {
+    if (!isWeaponPotentialKind(kind)) {
+        return stats.generalPercent > 0
+            ? [
+                  {
+                      kind: "general" as const,
+                      label: "",
+                      value: `${formatScore(stats.generalPercent)}%`,
+                      title: "Potential",
+                  },
+              ]
+            : [];
+    }
+
+    return [
+        {
+            kind: "attack" as const,
+            label: "",
+            value: stats.attackPercent,
+            title: "Attack",
+        },
+        {
+            kind: "boss" as const,
+            label: "",
+            value: stats.bossPercent,
+            title: "Boss Damage",
+        },
+        {
+            kind: "ignore" as const,
+            label: "",
+            value: stats.ignorePercent,
+            title: "Ignore Defense",
+        },
+    ]
+        .filter(({ value }) => value > 0)
+        .map(({ kind, label, value, title }) => ({
+            kind,
+            label,
+            value: `${label}${formatScore(value)}%`,
+            title,
+        }));
+};
+
+const getPotentialRankIndex = (rank: PotentialRank) =>
+    rank === "none" ? -1 : POTENTIAL_RANK_ORDER.indexOf(rank);
+
+const getPotentialRankFromIndex = (index: number): PotentialRank =>
+    index < 0
+        ? "none"
+        : POTENTIAL_RANK_ORDER[
+              clampNumber(index, 0, POTENTIAL_RANK_ORDER.length - 1)
+          ];
+
+const maxPotentialRank = (
+    currentRank: PotentialRank,
+    nextRank: PotentialRank
+) =>
+    getPotentialRankIndex(nextRank) > getPotentialRankIndex(currentRank)
+        ? nextRank
+        : currentRank;
+
+const inferRankFromPotentialPercent = (
+    value: number,
+    level: number,
+    rankOffset = 0
+) => {
+    if (!Number.isFinite(value) || value <= 0) {
+        return "none" as PotentialRank;
+    }
+
+    if (rankOffset > 0 && value >= 9) {
+        return "legendary";
+    }
+
+    if (rankOffset === 0 && value >= 12) {
+        return "legendary";
+    }
+
+    const levelBucket = getPotentialLevelBucket(level);
+    let inferredIndex = -1;
+
+    POTENTIAL_RANK_ORDER.forEach((rank, index) => {
+        const rankValue = POTENTIAL_PERCENT_VALUES[rank][levelBucket];
+        if (value >= rankValue) {
+            inferredIndex = Math.max(inferredIndex, index + rankOffset);
+        }
+    });
+
+    return getPotentialRankFromIndex(inferredIndex);
+};
+
+const inferBossIgnorePotentialRank = (value: number) => {
+    if (value >= 35) {
+        return "legendary";
+    }
+
+    if (value >= 30) {
+        return "unique";
+    }
+
+    if (value >= 20) {
+        return "epic";
+    }
+
+    return "none";
+};
+
+const inferPotentialLineRank = (
+    line: string,
+    settings: FlameScoreSettings,
+    kind: EquipKind,
+    itemLevel: number
+): PotentialRank => {
+    const normalizedLine = line.toLowerCase();
+    const value = getFirstPotentialPercentValue(normalizedLine);
+    const shortBossTotal = getShortPotentialTokenTotal(normalizedLine, "b");
+    const shortIgnoreTotal = getShortPotentialTokenTotal(normalizedLine, "i");
+    let rank: PotentialRank = "none";
+
+    if (shortBossTotal > 0) {
+        rank = maxPotentialRank(rank, inferBossIgnorePotentialRank(shortBossTotal));
+    }
+    if (shortIgnoreTotal > 0) {
+        rank = maxPotentialRank(
+            rank,
+            inferBossIgnorePotentialRank(shortIgnoreTotal)
+        );
+    }
+
+    if (isBossPotentialLine(normalizedLine)) {
+        return maxPotentialRank(rank, inferBossIgnorePotentialRank(value));
+    }
+
+    if (isIgnorePotentialLine(normalizedLine)) {
+        return maxPotentialRank(rank, inferBossIgnorePotentialRank(value));
+    }
+
+    if (isAllStatPotentialLine(normalizedLine)) {
+        return maxPotentialRank(
+            rank,
+            inferRankFromPotentialPercent(value, itemLevel, 1)
+        );
+    }
+
+    const primary = settings.primaryStat.toLowerCase();
+    if (
+        isAttackPotentialLine(normalizedLine) ||
+        normalizedLine.includes(primary) ||
+        (isWeaponPotentialKind(kind) &&
+            /^\s*[+-]?\d+(?:\.\d+)?\s*%/.test(line))
+    ) {
+        return maxPotentialRank(
+            rank,
+            inferRankFromPotentialPercent(value, itemLevel)
+        );
+    }
+
+    return rank;
+};
+
+const inferPotentialBlockRank = (
+    block: PotentialBlock,
+    settings: FlameScoreSettings,
+    kind: EquipKind,
+    itemLevel: number
+): PotentialRank =>
+    block.lines.reduce<PotentialRank>(
+        (rank, line) =>
+            maxPotentialRank(
+                rank,
+                inferPotentialLineRank(line, settings, kind, itemLevel)
+            ),
+        "none" as PotentialRank
     );
 
 const getSingleStatFlameUnit = (level: number) => {
@@ -1169,6 +1586,26 @@ const loadStoredState = (
                 const storedCatalogItem = storedSlot.itemId
                     ? getCatalogItem(kind, storedSlot.itemId, jobType)
                     : undefined;
+                const itemName =
+                    storedSlot.itemName ||
+                    storedCatalogItem?.name ||
+                    fallbackSlot.itemName;
+                const itemLevel =
+                    storedCatalogItem?.level ||
+                    storedSlot.itemLevel ||
+                    fallbackSlot.itemLevel;
+                const itemSetType =
+                    storedCatalogItem?.setType ||
+                    storedSlot.itemSetType ||
+                    fallbackSlot.itemSetType;
+                const starForceCap = getSlotStarForceCap(
+                    {
+                        itemName,
+                        itemLevel,
+                        itemSetType,
+                    },
+                    storedCatalogItem
+                );
 
                 return [
                     slotId,
@@ -1179,29 +1616,20 @@ const loadStoredState = (
                             storedCatalogItem?.id ||
                             storedSlot.itemId ||
                             fallbackSlot.itemId,
-                        itemName:
-                            storedSlot.itemName ||
-                            storedCatalogItem?.name ||
-                            fallbackSlot.itemName,
+                        itemName,
                         itemImage:
                             storedCatalogItem?.imgPath ||
                             storedSlot.itemImage ||
                             fallbackSlot.itemImage,
-                        itemLevel:
-                            storedCatalogItem?.level ||
-                            storedSlot.itemLevel ||
-                            fallbackSlot.itemLevel,
-                        itemSetType:
-                            storedCatalogItem?.setType ||
-                            storedSlot.itemSetType ||
-                            fallbackSlot.itemSetType,
+                        itemLevel,
+                        itemSetType,
                         stars: clampNumber(
                             Math.trunc(
                                 Number(storedSlot.stars ?? fallbackSlot.stars) ||
                                     0
                             ),
                             0,
-                            MAX_STAR_FORCE
+                            starForceCap
                         ),
                         mesoSpent: normalizeCounterValue(
                             storedSlot.mesoSpent ?? fallbackSlot.mesoSpent
@@ -1284,11 +1712,6 @@ function EquipmentSetup() {
     const selectedCatalogItem =
         getCatalogItem(selectedKind, selectedSlot.itemId, selectedJobType) ||
         selectedCatalogItems.find((item) => item.name === selectedSlot.itemName);
-    const selectedStatEntries = selectedCatalogItem
-        ? Object.entries(selectedCatalogItem.stats).filter(
-              ([, value]) => Number(value) !== 0
-          )
-        : [];
     const countedSetEffects = React.useMemo(
         () => getCountedSetEffects(equipmentState, selectedJobType),
         [equipmentState, selectedJobType]
@@ -1324,19 +1747,19 @@ function EquipmentSetup() {
             itemImage: item.imgPath,
             itemLevel: item.level,
             itemSetType: item.setType,
+            stars: clampNumber(
+                selectedSlot.stars,
+                0,
+                getSlotStarForceCap(
+                    {
+                        itemName: item.name,
+                        itemLevel: item.level,
+                        itemSetType: item.setType,
+                    },
+                    item
+                )
+            ),
         });
-    };
-
-    const updatePotentialRank = (
-        key: "potential" | "bonusPotential",
-        rank: PotentialRank
-    ) => {
-        updateSelectedSlot({
-            [key]: {
-                ...selectedSlot[key],
-                rank,
-            },
-        } as Partial<EquipmentSlotState>);
     };
 
     const updatePotentialLine = (
@@ -1382,15 +1805,21 @@ function EquipmentSetup() {
                 onChange={updateJobType}
             />
 
-            <div className="grid gap-4 xl:grid-cols-[minmax(310px,430px)_minmax(360px,1fr)]">
-                <EquipmentGridPanel
-                    equipmentState={equipmentState}
-                    flameScoreSettings={flameScoreSettings}
-                    selectedJobType={selectedJobType}
-                    selectedSlotId={selectedSlotId}
-                    setEffects={countedSetEffects}
-                    onSelectSlot={setSelectedSlotId}
-                />
+            <div className="grid gap-4 xl:grid-cols-[minmax(250px,0.9fr)_minmax(480px,1.15fr)_minmax(430px,2fr)]">
+                <SetEffectsPanel setEffects={countedSetEffects} />
+                <div className="min-w-0">
+                    <EquipmentGridPanel
+                        equipmentState={equipmentState}
+                        flameScoreSettings={flameScoreSettings}
+                        selectedJobType={selectedJobType}
+                        selectedSlotId={selectedSlotId}
+                        onSelectSlot={setSelectedSlotId}
+                    />
+                    <EnhancementMemoPanel
+                        selectedSlot={selectedSlot}
+                        onSlotChange={updateSelectedSlot}
+                    />
+                </div>
                 <SelectedEquipmentPanel
                     selectedCatalogItem={selectedCatalogItem}
                     selectedCatalogItems={selectedCatalogItems}
@@ -1398,12 +1827,10 @@ function EquipmentSetup() {
                     selectedKind={selectedKind}
                     selectedSlot={selectedSlot}
                     selectedSlotId={selectedSlotId}
-                    selectedStatEntries={selectedStatEntries}
                     flameScoreSettings={flameScoreSettings}
                     onFlameScoreSettingsChange={setFlameScoreSettings}
                     onFlameLineChange={updateFlameLine}
                     onPotentialLineChange={updatePotentialLine}
-                    onPotentialRankChange={updatePotentialRank}
                     onResetAll={resetAllSlots}
                     onResetSlot={resetSelectedSlot}
                     onSelectCatalogItem={selectCatalogItem}
@@ -1419,28 +1846,32 @@ function EquipmentGridPanel({
     flameScoreSettings,
     selectedJobType,
     selectedSlotId,
-    setEffects,
     onSelectSlot,
 }: Readonly<{
     equipmentState: Record<EquipSlotId, EquipmentSlotState>;
     flameScoreSettings: FlameScoreSettings;
     selectedJobType: JobType;
     selectedSlotId: EquipSlotId;
-    setEffects: CountedSetEffect[];
     onSelectSlot: (slotId: EquipSlotId) => void;
 }>) {
     return (
-        <div className="min-w-0">
-            <div className="overflow-x-auto">
-                <div className="relative w-[428px] max-w-full">
-                    <img
-                        src="/image/equipment/equip-tab.png"
-                        alt="Equipment window"
-                        className="w-full rounded-md [image-rendering:pixelated]"
-                    />
-                    <div className="absolute left-0 top-0 grid grid-cols-5 gap-[6px] px-[10px] py-[12px]">
-                        {EQUIP_GRID.map((slotId, index) =>
-                            slotId ? (
+        <div className="w-full min-w-0 overflow-x-auto">
+            <div className="relative mx-auto w-full min-w-[480px]">
+                <img
+                    src="/image/equipment/equip-tab.png"
+                    alt="Equipment window"
+                    className="block w-full rounded-md [image-rendering:pixelated]"
+                />
+                <div className="absolute inset-0">
+                    {EQUIP_SLOT_IDS.map((slotId) => {
+                        const layout = EQUIP_SLOT_LAYOUTS[slotId];
+
+                        return (
+                            <div
+                                className="absolute"
+                                style={getEquipmentSlotLayoutStyle(layout)}
+                                key={slotId}
+                            >
                                 <EquipmentGridSlot
                                     equipmentState={equipmentState}
                                     flameScoreSettings={flameScoreSettings}
@@ -1448,21 +1879,85 @@ function EquipmentGridPanel({
                                     selectedJobType={selectedJobType}
                                     slotId={slotId}
                                     onSelect={onSelectSlot}
-                                    key={slotId}
                                 />
-                            ) : (
-                                <div
-                                    className="h-[76px] w-[76px]"
-                                    key={`blank-${index}`}
-                                />
-                            )
-                        )}
-                    </div>
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
-
-            <SetEffectsPanel setEffects={setEffects} />
         </div>
+    );
+}
+
+function PotentialBadgeIcon({
+    kind,
+}: Readonly<{
+    kind: "general" | "attack" | "boss" | "ignore";
+}>) {
+    if (kind === "attack") {
+        return (
+            <svg
+                viewBox="0 0 16 16"
+                className="h-[1em] w-[1em] shrink-0"
+                aria-hidden="true"
+                focusable="false"
+            >
+                <path
+                    fill="currentColor"
+                    d="M11.9 1.5 14.5 4 6.7 11.8 4.2 9.3l7.7-7.8Zm-8.5 8.7 2.4 2.4-1.2 1.2H2.2v-2.4l1.2-1.2Zm3.4 3.1 1.2-1.2 1.2 1.2-.8.8-1.6-.8Z"
+                />
+            </svg>
+        );
+    }
+
+    if (kind === "boss") {
+        return (
+            <svg
+                viewBox="0 0 16 16"
+                className="h-[1em] w-[1em] shrink-0"
+                aria-hidden="true"
+                focusable="false"
+            >
+                <path
+                    fill="currentColor"
+                    d="M8 1.5c-3.1 0-5.5 2.2-5.5 5.1 0 1.8.9 3.1 2.2 3.9v2.1c0 .6.4 1 1 1h4.6c.6 0 1-.4 1-1v-2.1c1.3-.8 2.2-2.1 2.2-3.9 0-2.9-2.4-5.1-5.5-5.1Zm-2.2 6.8c-.7 0-1.2-.5-1.2-1.2s.5-1.2 1.2-1.2S7 6.4 7 7.1 6.5 8.3 5.8 8.3Zm2.2 3.3c-.4 0-.8-.3-.8-.8s.4-1.2.8-1.2.8.8.8 1.2-.4.8-.8.8Zm2.2-3.3c-.7 0-1.2-.5-1.2-1.2s.5-1.2 1.2-1.2 1.2.5 1.2 1.2-.5 1.2-1.2 1.2Z"
+                />
+            </svg>
+        );
+    }
+
+    if (kind === "ignore") {
+        return (
+            <svg
+                viewBox="0 0 16 16"
+                className="h-[1em] w-[1em] shrink-0"
+                aria-hidden="true"
+                focusable="false"
+            >
+                <path
+                    fill="currentColor"
+                    d="M8 1.3 13 3v4.2c0 3-1.8 5.6-5 7.5-3.2-1.9-5-4.5-5-7.5V3l5-1.7Zm0 1.8L4.6 4.2v3c0 2.1 1.1 4 3.4 5.5 2.3-1.5 3.4-3.4 3.4-5.5v-3L8 3.1Z"
+                />
+            </svg>
+        );
+    }
+
+    return null;
+}
+
+function TrashIndicatorIcon() {
+    return (
+        <svg
+            viewBox="0 0 16 16"
+            className="h-[1em] w-[1em] shrink-0"
+            aria-hidden="true"
+            focusable="false"
+        >
+            <path
+                fill="currentColor"
+                d="M5.5 1.5h5l.8 1.5H14v1.5H2V3h2.7l.8-1.5ZM4 5.5h8l-.5 8c-.1.6-.6 1-1.2 1H5.7c-.6 0-1.1-.4-1.2-1L4 5.5Zm2.1 1.3.3 5.7h1.2l-.3-5.7H6.1Zm2.6 0v5.7h1.2V6.8H8.7Z"
+            />
+        </svg>
     );
 }
 
@@ -1487,10 +1982,26 @@ function EquipmentGridSlot({
         slot.itemId,
         selectedJobType
     );
-    const potentialPercent = calculatePotentialPercent(
+    const kind = slotKind(slotId);
+    const starValue = clampNumber(
+        slot.stars,
+        0,
+        getSlotStarForceCap(slot, catalogItem)
+    );
+    const potentialStats = calculateSlotPotentialStats(
         slot,
         flameScoreSettings,
-        slotKind(slotId)
+        kind
+    );
+    const potentialBadges = getPotentialGridBadges(
+        potentialStats,
+        kind
+    );
+    const potentialRank = inferPotentialBlockRank(
+        slot.potential,
+        flameScoreSettings,
+        kind,
+        slot.itemLevel
     );
     const flameScore = calculateFlameScore(
         slot,
@@ -1501,10 +2012,10 @@ function EquipmentGridSlot({
     return (
         <button
             type="button"
-            className={`relative flex h-[76px] w-[76px] items-center justify-center rounded-md border-2 bg-black/10 transition-colors ${
+            className={`relative flex h-full w-full items-center justify-center rounded-[4px] border-2 bg-black/10 [container-type:size] transition-colors ${
                 isSelected
                     ? "border-primary bg-primary/20"
-                    : `${POTENTIAL_BORDER[slot.potential.rank]} hover:border-primary`
+                    : `${POTENTIAL_BORDER[potentialRank]} hover:border-primary`
             }`}
             onClick={() => onSelect(slotId)}
             title={SLOT_LABELS[slotId]}
@@ -1513,29 +2024,46 @@ function EquipmentGridSlot({
             <img
                 src={slot.itemImage}
                 alt=""
-                className="max-h-12 max-w-12 object-contain"
+                className="h-[76%] w-[76%] object-contain [image-rendering:pixelated]"
             />
-            {slot.stars > 0 ? (
-                <span className="absolute right-1 top-1 rounded bg-black/75 px-1 text-[10px] font-bold leading-4 text-yellow-200">
-                    ★{slot.stars}
+            {starValue > 0 || slot.destructionCount > 0 ? (
+                <span className="pointer-events-none absolute right-[3cqw] top-[3cqw] flex flex-col items-end gap-[1.25cqw]">
+                    {starValue > 0 ? (
+                        <span className="rounded-sm bg-black/75 px-[0.35em] text-[clamp(12px,18cqw,20px)] font-bold leading-[1.25] text-yellow-200">
+                            ★{starValue}
+                        </span>
+                    ) : null}
+                    {slot.destructionCount > 0 ? (
+                        <span
+                            className="flex items-center gap-[0.15em] rounded-sm bg-red-700/90 px-[0.35em] text-[clamp(11px,16cqw,18px)] font-bold leading-[1.25] text-red-100"
+                            title="Destructions"
+                        >
+                            <TrashIndicatorIcon />
+                            {slot.destructionCount}
+                        </span>
+                    ) : null}
                 </span>
             ) : null}
-            {potentialPercent > 0 ? (
-                <span className="absolute left-1 top-1 rounded bg-sky-500/90 px-1 text-[10px] font-bold leading-4 text-white">
-                    {formatScore(potentialPercent)}%
-                </span>
-            ) : null}
-            {slot.destructionCount > 0 ? (
-                <span className="absolute bottom-1 right-1 rounded bg-red-700/90 px-1 text-[10px] font-bold leading-4 text-red-100">
-                    ×{slot.destructionCount}
+            {potentialBadges.length > 0 ? (
+                <span className="pointer-events-none absolute left-[3cqw] top-[3cqw] flex max-w-[68cqw] flex-col items-start gap-[1.25cqw]">
+                    {potentialBadges.map((badge) => (
+                        <span
+                            className="flex max-w-full items-center gap-[0.15em] truncate rounded-sm bg-sky-500/90 px-[0.35em] text-[clamp(9px,13cqw,15px)] font-bold leading-[1.15] text-white"
+                            title={badge.title}
+                            key={`${badge.kind}:${badge.value}`}
+                        >
+                            <PotentialBadgeIcon kind={badge.kind} />
+                            {badge.value}
+                        </span>
+                    ))}
                 </span>
             ) : null}
             {flameScore > 0 ? (
-                <span className="absolute bottom-1 left-1 flex items-center gap-0.5 rounded bg-black/80 px-1 text-[10px] font-bold leading-4 text-slate-100">
+                <span className="absolute bottom-[3cqw] left-[3cqw] flex items-center gap-[0.15em] rounded-sm bg-black/80 px-[0.35em] text-[clamp(10px,15cqw,17px)] font-bold leading-[1.25] text-slate-100">
                     <img
                         src={BLACK_FLAME_ICON}
                         alt=""
-                        className="h-3 w-3 object-contain"
+                        className="h-[1em] w-[1em] object-contain"
                     />
                     {formatScore(flameScore)}
                 </span>
@@ -1551,12 +2079,10 @@ function SelectedEquipmentPanel({
     selectedKind,
     selectedSlot,
     selectedSlotId,
-    selectedStatEntries,
     flameScoreSettings,
     onFlameScoreSettingsChange,
     onFlameLineChange,
     onPotentialLineChange,
-    onPotentialRankChange,
     onResetAll,
     onResetSlot,
     onSelectCatalogItem,
@@ -1568,7 +2094,6 @@ function SelectedEquipmentPanel({
     selectedKind: EquipKind;
     selectedSlot: EquipmentSlotState;
     selectedSlotId: EquipSlotId;
-    selectedStatEntries: [string, number][];
     flameScoreSettings: FlameScoreSettings;
     onFlameScoreSettingsChange: React.Dispatch<
         React.SetStateAction<FlameScoreSettings>
@@ -1579,15 +2104,17 @@ function SelectedEquipmentPanel({
         index: number,
         value: string
     ) => void;
-    onPotentialRankChange: (
-        key: "potential" | "bonusPotential",
-        rank: PotentialRank
-    ) => void;
     onResetAll: () => void;
     onResetSlot: () => void;
     onSelectCatalogItem: (itemId: string) => void;
     onSlotChange: (patch: Partial<EquipmentSlotState>) => void;
 }>) {
+    const starForceCap = getSlotStarForceCap(
+        selectedSlot,
+        selectedCatalogItem
+    );
+    const starValue = clampNumber(selectedSlot.stars, 0, starForceCap);
+
     return (
         <div className="min-w-0 rounded-md border border-slate-600 bg-slate-800/60 p-3">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -1636,46 +2163,6 @@ function SelectedEquipmentPanel({
                 />
             </div>
 
-            <label className="mb-3 block text-sm">
-                <span className="mb-1 block text-slate-300">
-                    Equipment name
-                </span>
-                <input
-                    className="w-full rounded-md border border-slate-600 bg-slate-900 px-3 py-2 text-white outline-none focus:border-primary"
-                    value={selectedSlot.itemName}
-                    onChange={(event) =>
-                        onSlotChange({ itemName: event.target.value })
-                    }
-                />
-            </label>
-
-            <div className="mb-4 grid gap-2 rounded-md bg-slate-900/70 p-3 text-sm sm:grid-cols-2">
-                <div>
-                    <div className="text-slate-400">Level</div>
-                    <div className="font-bold text-white">
-                        {selectedSlot.itemLevel || "-"}
-                    </div>
-                </div>
-                <div>
-                    <div className="text-slate-400">Set</div>
-                    <div className="font-bold text-white">
-                        {selectedSlot.itemSetType || "none"}
-                    </div>
-                </div>
-                {selectedStatEntries.length > 0 ? (
-                    <div className="col-span-full flex flex-wrap gap-1">
-                        {selectedStatEntries.slice(0, 10).map(([key, value]) => (
-                            <span
-                                className="rounded bg-slate-700 px-2 py-1 text-xs text-slate-200"
-                                key={key}
-                            >
-                                {key} +{value}
-                            </span>
-                        ))}
-                    </div>
-                ) : null}
-            </div>
-
             <section className="mb-4 rounded-md bg-slate-900/70 p-3">
                 <div className="mb-2 flex items-center justify-between gap-2">
                     <h3 className="text-sm font-bold uppercase text-slate-200">
@@ -1692,8 +2179,8 @@ function SelectedEquipmentPanel({
                         <input
                             type="number"
                             min={0}
-                            max={MAX_STAR_FORCE}
-                            value={selectedSlot.stars}
+                            max={starForceCap}
+                            value={starValue}
                             onChange={(event) =>
                                 onSlotChange({
                                     stars: clampNumber(
@@ -1701,7 +2188,7 @@ function SelectedEquipmentPanel({
                                             Number(event.target.value) || 0
                                         ),
                                         0,
-                                        MAX_STAR_FORCE
+                                        starForceCap
                                     ),
                                 })
                             }
@@ -1711,37 +2198,10 @@ function SelectedEquipmentPanel({
                     </div>
                 </div>
                 <StarForceSelector
-                    value={selectedSlot.stars}
+                    value={starValue}
+                    maxStars={starForceCap}
                     onChange={(stars) => onSlotChange({ stars })}
                 />
-            </section>
-
-            <section className="mb-4 rounded-md bg-slate-900/70 p-3">
-                <h3 className="mb-2 text-sm font-bold uppercase text-slate-200">
-                    Enhancement Memo
-                </h3>
-                <div className="grid gap-3 sm:grid-cols-2">
-                    <CounterControl
-                        label="Meso spent"
-                        value={selectedSlot.mesoSpent}
-                        step={MESO_COUNTER_STEP}
-                        decrementLabel="-100m"
-                        incrementLabel="+100m"
-                        suffix="mesos"
-                        onChange={(mesoSpent) => onSlotChange({ mesoSpent })}
-                    />
-                    <CounterControl
-                        label="Destructions"
-                        value={selectedSlot.destructionCount}
-                        step={1}
-                        decrementLabel="-1"
-                        incrementLabel="+1"
-                        suffix="times"
-                        onChange={(destructionCount) =>
-                            onSlotChange({ destructionCount })
-                        }
-                    />
-                </div>
             </section>
 
             <div className="grid gap-4 lg:grid-cols-2">
@@ -1751,9 +2211,7 @@ function SelectedEquipmentPanel({
                     equipKind={selectedKind}
                     itemLevel={selectedSlot.itemLevel}
                     settings={flameScoreSettings}
-                    onRankChange={(rank) =>
-                        onPotentialRankChange("potential", rank)
-                    }
+                    selectedJobType={selectedJobType}
                     onLineChange={(index, value) =>
                         onPotentialLineChange("potential", index, value)
                     }
@@ -1764,9 +2222,7 @@ function SelectedEquipmentPanel({
                     equipKind={selectedKind}
                     itemLevel={selectedSlot.itemLevel}
                     settings={flameScoreSettings}
-                    onRankChange={(rank) =>
-                        onPotentialRankChange("bonusPotential", rank)
-                    }
+                    selectedJobType={selectedJobType}
                     onLineChange={(index, value) =>
                         onPotentialLineChange("bonusPotential", index, value)
                     }
@@ -1787,6 +2243,7 @@ function SelectedEquipmentPanel({
                 <div className="grid gap-3 lg:grid-cols-[240px_minmax(0,1fr)]">
                     <FlameScoreSettingsPanel
                         settings={flameScoreSettings}
+                        selectedJobType={selectedJobType}
                         onChange={onFlameScoreSettingsChange}
                     />
                     <div className="grid content-start gap-2">
@@ -1834,6 +2291,11 @@ function SelectedEquipmentPanel({
                                         onChange={(event) =>
                                             onFlameLineChange(index, {
                                                 stat: event.target.value,
+                                                tier:
+                                                    event.target.value ===
+                                                    "None"
+                                                        ? 0
+                                                        : line.tier,
                                             })
                                         }
                                     >
@@ -1843,26 +2305,14 @@ function SelectedEquipmentPanel({
                                             </option>
                                         ))}
                                     </select>
-                                    <input
-                                        type="number"
-                                        min={0}
-                                        max={7}
-                                        className="h-10 rounded-md border border-slate-600 bg-slate-950 px-2 text-right text-sm leading-10 outline-none focus:border-primary"
+                                    <FlameTierButtonGroup
                                         value={line.tier}
-                                        onChange={(event) =>
-                                            onFlameLineChange(index, {
-                                                tier: clampNumber(
-                                                    Math.trunc(
-                                                        Number(
-                                                            event.target.value
-                                                        ) || 0
-                                                    ),
-                                                    0,
-                                                    7
-                                                ),
-                                            })
+                                        onChange={(tier) =>
+                                            onFlameLineChange(index, { tier })
                                         }
-                                        aria-label={`Bonus stat ${index + 1} tier`}
+                                        ariaLabel={`Bonus stat ${
+                                            index + 1
+                                        } tier`}
                                     />
                                     <output
                                         className="flex h-10 items-center justify-end rounded-md border border-slate-700 bg-slate-950/60 px-2 text-right text-sm font-semibold leading-none text-slate-200"
@@ -1917,11 +2367,47 @@ function JobTypeSelector({
     );
 }
 
+function FlameTierButtonGroup({
+    value,
+    onChange,
+    ariaLabel,
+}: Readonly<{
+    value: number;
+    onChange: (tier: number) => void;
+    ariaLabel: string;
+}>) {
+    return (
+        <ButtonGroup className="!w-full min-w-0" aria-label={ariaLabel}>
+            {FLAME_TIERS.map((tier) => {
+                const isSelected = value === tier;
+
+                return (
+                    <button
+                        type="button"
+                        className={`flex h-10 min-w-0 flex-1 items-center justify-center border border-slate-600 bg-slate-950 px-2 text-sm font-semibold leading-none outline-none transition-colors hover:border-primary hover:text-primary focus-visible:border-primary ${
+                            isSelected
+                                ? "bg-primary text-slate-950 hover:text-slate-950"
+                                : "text-slate-300"
+                        }`}
+                        aria-pressed={isSelected}
+                        onClick={() => onChange(tier)}
+                        key={tier}
+                    >
+                        {tier}
+                    </button>
+                );
+            })}
+        </ButtonGroup>
+    );
+}
+
 function FlameScoreSettingsPanel({
     settings,
+    selectedJobType,
     onChange,
 }: Readonly<{
     settings: FlameScoreSettings;
+    selectedJobType: JobType;
     onChange: React.Dispatch<React.SetStateAction<FlameScoreSettings>>;
 }>) {
     const updateSetting = <Key extends keyof FlameScoreSettings>(
@@ -1948,15 +2434,15 @@ function FlameScoreSettingsPanel({
     };
 
     return (
-        <div className="rounded-md border border-slate-700 bg-slate-950 p-3 text-sm">
-            <div className="mb-2 flex items-center gap-2 font-bold uppercase text-slate-200">
+        <fieldset className="rounded-md border border-slate-700 bg-slate-950 p-3 text-sm">
+            <legend className="flex items-center gap-2 px-1 font-bold uppercase text-slate-200">
                 <img
                     src={BLACK_FLAME_ICON}
                     alt=""
                     className="h-5 w-5 object-contain"
                 />
                 Flame ratios
-            </div>
+            </legend>
             <div className="grid gap-2">
                 <label className="grid gap-1">
                     <span className="text-xs text-slate-400">Primary stat</span>
@@ -2004,7 +2490,7 @@ function FlameScoreSettingsPanel({
                     onChange={(value) => updateRatio("secondaryStatValue", value)}
                 />
                 <RatioInput
-                    label="1 ATT / MATT"
+                    label={`1 ${getAttackStatLabel(selectedJobType)}`}
                     value={settings.attackValue}
                     onChange={(value) => updateRatio("attackValue", value)}
                 />
@@ -2023,7 +2509,7 @@ function FlameScoreSettingsPanel({
                     }
                 />
             </div>
-        </div>
+        </fieldset>
     );
 }
 
@@ -2037,19 +2523,17 @@ function RatioInput({
     onChange: (value: number) => void;
 }>) {
     return (
-        <label className="grid gap-1">
+        <label className="grid grid-cols-[minmax(0,1fr)_36px] items-center gap-2">
             <span className="text-xs text-slate-400">{label}</span>
-            <div className="grid grid-cols-[minmax(0,1fr)_36px] items-center gap-2">
-                <input
-                    type="number"
-                    min={0}
-                    step={0.125}
-                    className="h-10 min-w-0 rounded-md border border-slate-600 bg-slate-900 px-2 text-right outline-none focus:border-primary"
-                    value={value}
-                    onChange={(event) => onChange(event.target.valueAsNumber)}
-                />
-                <span className="text-left text-xs text-slate-500">main</span>
-            </div>
+            <span className="text-left text-xs text-slate-500">main</span>
+            <input
+                type="number"
+                min={0}
+                step={0.125}
+                className="h-10 min-w-0 rounded-md border border-slate-600 bg-slate-900 px-2 text-right outline-none focus:border-primary"
+                value={value}
+                onChange={(event) => onChange(event.target.valueAsNumber)}
+            />
         </label>
     );
 }
@@ -2062,7 +2546,7 @@ function SetEffectsPanel({
     ).length;
 
     return (
-        <section className="mt-3 rounded-md border border-slate-700 bg-slate-800/60 p-3 text-sm">
+        <section className="rounded-md border border-slate-700 bg-slate-800/60 p-3 text-sm">
             <div className="mb-2 flex items-center justify-between gap-2">
                 <h3 className="text-sm font-bold uppercase text-slate-200">
                     Set Effects
@@ -2250,13 +2734,21 @@ function SetEffectTooltip({
 
 function StarForceSelector({
     value,
+    maxStars,
     onChange,
 }: Readonly<{
     value: number;
+    maxStars: number;
     onChange: (value: number) => void;
 }>) {
     const rootRef = React.useRef<HTMLDivElement>(null);
     const isDraggingRef = React.useRef(false);
+    const normalizedMaxStars = clampNumber(
+        Math.trunc(Number(maxStars) || 0),
+        0,
+        MAX_STAR_FORCE
+    );
+    const rowCount = Math.ceil(normalizedMaxStars / STAR_ROW_SIZE);
 
     const getStarValueFromPoint = React.useCallback(
         (clientX: number, clientY: number) => {
@@ -2274,7 +2766,7 @@ function StarForceSelector({
                 return clampNumber(
                     Number(directButton.dataset.starValue) || 0,
                     0,
-                    MAX_STAR_FORCE
+                    normalizedMaxStars
                 );
             }
 
@@ -2297,9 +2789,9 @@ function StarForceSelector({
                 }
             }
 
-            return clampNumber(closestValue, 0, MAX_STAR_FORCE);
+            return clampNumber(closestValue, 0, normalizedMaxStars);
         },
-        [value]
+        [normalizedMaxStars, value]
     );
 
     const updateFromPointer = React.useCallback(
@@ -2343,7 +2835,7 @@ function StarForceSelector({
 
     return (
         <div
-            className="flex touch-none select-none flex-wrap gap-x-4 gap-y-2"
+            className="grid touch-none select-none gap-y-2 overflow-x-auto"
             ref={rootRef}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
@@ -2352,99 +2844,183 @@ function StarForceSelector({
             role="group"
             aria-label="Star Force stars"
         >
-            {Array.from({ length: MAX_STAR_FORCE / STAR_GROUP_SIZE }).map(
-                (_, groupIndex) => (
+            {Array.from({ length: rowCount }).map((_, rowIndex) => {
+                const rowStart = rowIndex * STAR_ROW_SIZE + 1;
+                const rowLength = Math.min(
+                    STAR_ROW_SIZE,
+                    normalizedMaxStars - rowIndex * STAR_ROW_SIZE
+                );
+                const groupCount = Math.ceil(rowLength / STAR_GROUP_SIZE);
+
+                return (
                     <div
-                        className="flex gap-0.5"
-                        key={`star-group-${groupIndex}`}
+                        className="mx-auto flex w-max justify-center gap-x-4"
+                        key={`star-row-${rowIndex}`}
                     >
-                        {Array.from({ length: STAR_GROUP_SIZE }).map(
-                            (__, starIndex) => {
-                                const starValue =
-                                    groupIndex * STAR_GROUP_SIZE +
-                                    starIndex +
-                                    1;
-                                const isFilled = starValue <= value;
+                        {Array.from({ length: groupCount }).map(
+                            (__, groupIndex) => {
+                                const groupStart =
+                                    rowStart + groupIndex * STAR_GROUP_SIZE;
+                                const groupLength = Math.min(
+                                    STAR_GROUP_SIZE,
+                                    rowStart + rowLength - groupStart
+                                );
 
                                 return (
-                                    <button
-                                        type="button"
-                                        className={`h-7 w-6 rounded-sm text-xl leading-7 transition-colors ${
-                                            isFilled
-                                                ? "text-yellow-300"
-                                                : "text-slate-600 hover:text-yellow-100"
-                                        }`}
-                                        data-star-value={starValue}
-                                        aria-label={`Set Star Force to ${starValue}`}
-                                        aria-pressed={isFilled}
-                                        onClick={() => onChange(starValue)}
-                                        key={starValue}
+                                    <div
+                                        className="flex gap-0.5"
+                                        key={`star-group-${rowIndex}-${groupIndex}`}
                                     >
-                                        {isFilled ? "★" : "☆"}
-                                    </button>
+                                        {Array.from({ length: groupLength }).map(
+                                            (___, starIndex) => {
+                                                const starValue =
+                                                    groupStart + starIndex;
+                                                const isFilled =
+                                                    starValue <= value;
+
+                                                return (
+                                                    <button
+                                                        type="button"
+                                                        className={`h-7 w-6 rounded-sm text-xl leading-7 transition-colors ${
+                                                            isFilled
+                                                                ? "text-yellow-300"
+                                                                : "text-slate-600 hover:text-yellow-100"
+                                                        }`}
+                                                        data-star-value={
+                                                            starValue
+                                                        }
+                                                        aria-label={`Set Star Force to ${starValue}`}
+                                                        aria-pressed={isFilled}
+                                                        onClick={() =>
+                                                            onChange(starValue)
+                                                        }
+                                                        key={starValue}
+                                                    >
+                                                        {isFilled ? "★" : "☆"}
+                                                    </button>
+                                                );
+                                            }
+                                        )}
+                                    </div>
                                 );
                             }
                         )}
                     </div>
-                )
-            )}
+                );
+            })}
         </div>
     );
 }
 
-function CounterControl({
-    label,
-    value,
-    step,
-    decrementLabel,
-    incrementLabel,
-    suffix,
-    onChange,
+function EnhancementMemoPanel({
+    selectedSlot,
+    onSlotChange,
 }: Readonly<{
-    label: string;
-    value: number;
-    step: number;
-    decrementLabel: string;
-    incrementLabel: string;
-    suffix: string;
-    onChange: (value: number) => void;
+    selectedSlot: EquipmentSlotState;
+    onSlotChange: (patch: Partial<EquipmentSlotState>) => void;
 }>) {
-    const updateValue = (nextValue: number) => {
-        onChange(normalizeCounterValue(nextValue));
+    const updateMesoSpent = (nextValue: number) => {
+        onSlotChange({ mesoSpent: normalizeCounterValue(nextValue) });
     };
+    const updateDestructionCount = (nextValue: number) => {
+        onSlotChange({ destructionCount: normalizeCounterValue(nextValue) });
+    };
+    const counterRowClass =
+        "mx-auto mt-3 grid w-full gap-2 rounded-md border border-slate-700 bg-slate-950 p-3 sm:grid-cols-[112px_minmax(0,1fr)_272px] sm:items-center";
+    const inputClass =
+        "h-10 min-w-0 rounded-md border border-slate-600 bg-slate-900 px-2 text-right text-sm tabular-nums text-white outline-none focus:border-primary";
+    const counterButtonClass =
+        "h-8 rounded-md border border-slate-600 px-2 text-xs tabular-nums text-slate-200 hover:border-primary hover:text-primary";
 
     return (
-        <div className="rounded-md border border-slate-700 bg-slate-950 p-3">
-            <div className="mb-2 text-sm text-slate-300">{label}</div>
-            <div className="flex items-center gap-2">
-                <button
-                    type="button"
-                    className="h-9 shrink-0 rounded-md border border-slate-600 px-2 text-xs text-slate-200 hover:border-primary hover:text-primary"
-                    onClick={() => updateValue(value - step)}
-                >
-                    {decrementLabel}
-                </button>
+        <>
+            <fieldset className={counterRowClass} aria-label="Meso spent">
+                <span className="text-sm text-slate-300">Meso spent</span>
                 <input
-                    type="number"
-                    min={0}
-                    step={step}
-                    value={value}
-                    onChange={(event) => updateValue(event.target.valueAsNumber)}
-                    className="min-w-0 flex-1 rounded-md border border-slate-600 bg-slate-900 px-2 py-2 text-right text-sm text-white outline-none focus:border-primary"
-                    aria-label={label}
+                    type="text"
+                    inputMode="numeric"
+                    value={formatInteger(selectedSlot.mesoSpent)}
+                    onChange={(event) =>
+                        updateMesoSpent(
+                            parseFormattedCounterValue(event.target.value)
+                        )
+                    }
+                    className={inputClass}
+                    aria-label="Meso spent"
                 />
-                <button
-                    type="button"
-                    className="h-9 shrink-0 rounded-md border border-slate-600 px-2 text-xs text-slate-200 hover:border-primary hover:text-primary"
-                    onClick={() => updateValue(value + step)}
-                >
-                    {incrementLabel}
-                </button>
-            </div>
-            <div className="mt-2 break-words text-xs text-slate-400">
-                {formatInteger(value)} {suffix}
-            </div>
-        </div>
+                <span className="grid w-full grid-cols-4 gap-1 justify-self-end">
+                    {MESO_COUNTER_STEPS.map((step) => (
+                        <button
+                            type="button"
+                            className={counterButtonClass}
+                            onClick={() =>
+                                updateMesoSpent(
+                                    selectedSlot.mesoSpent + step.value
+                                )
+                            }
+                            aria-label={`Add ${step.label} mesos`}
+                            key={`add-${step.label}`}
+                        >
+                            +{step.label}
+                        </button>
+                    ))}
+                    {MESO_COUNTER_STEPS.map((step) => (
+                        <button
+                            type="button"
+                            className={counterButtonClass}
+                            onClick={() =>
+                                updateMesoSpent(
+                                    selectedSlot.mesoSpent - step.value
+                                )
+                            }
+                            aria-label={`Subtract ${step.label} mesos`}
+                            key={`subtract-${step.label}`}
+                        >
+                            -{step.label}
+                        </button>
+                    ))}
+                </span>
+            </fieldset>
+            <fieldset className={counterRowClass} aria-label="Destructions">
+                <span className="text-sm text-slate-300">Destructions</span>
+                <input
+                    type="text"
+                    inputMode="numeric"
+                    value={formatInteger(selectedSlot.destructionCount)}
+                    onChange={(event) =>
+                        updateDestructionCount(
+                            parseFormattedCounterValue(event.target.value)
+                        )
+                    }
+                    className={inputClass}
+                    aria-label="Destructions"
+                />
+                <span className="grid w-full grid-cols-2 gap-1 justify-self-end">
+                    <button
+                        type="button"
+                        className={counterButtonClass}
+                        onClick={() =>
+                            updateDestructionCount(
+                                selectedSlot.destructionCount + 1
+                            )
+                        }
+                    >
+                        +1
+                    </button>
+                    <button
+                        type="button"
+                        className={counterButtonClass}
+                        onClick={() =>
+                            updateDestructionCount(
+                                selectedSlot.destructionCount - 1
+                            )
+                        }
+                    >
+                        -1
+                    </button>
+                </span>
+            </fieldset>
+        </>
     );
 }
 
@@ -2454,7 +3030,7 @@ function PotentialEditor({
     equipKind,
     itemLevel,
     settings,
-    onRankChange,
+    selectedJobType,
     onLineChange,
 }: Readonly<{
     title: string;
@@ -2462,26 +3038,48 @@ function PotentialEditor({
     equipKind: EquipKind;
     itemLevel: number;
     settings: FlameScoreSettings;
-    onRankChange: (rank: PotentialRank) => void;
+    selectedJobType: JobType;
     onLineChange: (index: number, value: string) => void;
 }>) {
     const datalistId = React.useId();
-    const percentValues = getPotentialPercentValues(block.rank, itemLevel);
-    const metricLabel = getPotentialMetricLabel(equipKind, settings);
+    const inferredRank = inferPotentialBlockRank(
+        block,
+        settings,
+        equipKind,
+        itemLevel
+    );
+    const suggestionRank: PotentialRank =
+        inferredRank === "none" ? "legendary" : inferredRank;
+    const percentValues = [
+        ...getPotentialPercentValues("legendary", itemLevel),
+        ...getAllStatPotentialPercentValues("legendary", itemLevel),
+    ]
+        .filter((value, index, values) => values.indexOf(value) === index)
+        .sort((a, b) => b - a);
+    const metricLabel = getPotentialMetricLabel(
+        equipKind,
+        settings,
+        selectedJobType
+    );
+    const potentialStats = calculatePotentialStats(
+        block.lines,
+        settings,
+        equipKind
+    );
+    const potentialSummary = formatPotentialStats(
+        potentialStats,
+        equipKind
+    );
     const suggestions = React.useMemo(
         () =>
             getPotentialSuggestions(
                 itemLevel,
                 settings,
                 equipKind,
-                block.rank
+                suggestionRank,
+                selectedJobType
             ),
-        [block.rank, equipKind, itemLevel, settings]
-    );
-    const totalPercent = block.lines.reduce(
-        (total, line) =>
-            total + parsePotentialPercentValue(line, settings, equipKind),
-        0
+        [equipKind, itemLevel, selectedJobType, settings, suggestionRank]
     );
 
     return (
@@ -2497,22 +3095,14 @@ function PotentialEditor({
                         {title}
                     </h3>
                     <div className="text-xs text-sky-300">
-                        {metricLabel} {formatScore(totalPercent)}%
+                        {metricLabel} {potentialSummary}
                     </div>
                 </div>
-                <select
-                    className={`rounded-md border bg-slate-950 px-2 py-1 text-sm outline-none focus:border-primary ${POTENTIAL_BORDER[block.rank]}`}
-                    value={block.rank}
-                    onChange={(event) =>
-                        onRankChange(event.target.value as PotentialRank)
-                    }
+                <span
+                    className={`rounded-md border bg-slate-950 px-2 py-1 text-sm ${POTENTIAL_BORDER[inferredRank]}`}
                 >
-                    {POTENTIAL_RANKS.map((rank) => (
-                        <option value={rank} key={rank}>
-                            {POTENTIAL_LABELS[rank]}
-                        </option>
-                    ))}
-                </select>
+                    {POTENTIAL_LABELS[inferredRank]}
+                </span>
             </div>
             {percentValues.length > 0 ? (
                 <div className="mb-2 text-xs text-slate-400">
