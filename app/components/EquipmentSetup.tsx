@@ -369,6 +369,12 @@ const MESO_COUNTER_STEPS = [
 ];
 const MAX_TRACKED_VALUE = Number.MAX_SAFE_INTEGER;
 const NUMBER_FORMATTER = new Intl.NumberFormat("en-US");
+const EQUIPMENT_PRESET_IDS = ["preset-1", "preset-2", "preset-3"] as const;
+const EQUIPMENT_PRESET_LABELS: Record<EquipmentPresetId, string> = {
+    "preset-1": "Preset 1",
+    "preset-2": "Preset 2",
+    "preset-3": "Preset 3",
+};
 
 const STAR_FORCE_LEVEL_CAPS = [
     { minLevel: 0, maxLevel: 94, normal: 5, superior: 3 },
@@ -468,6 +474,20 @@ type EquipmentSlotState = {
     flames: FlameLine[];
 };
 
+type EquipmentPresetId = (typeof EQUIPMENT_PRESET_IDS)[number];
+
+type EquipmentPresetState = {
+    selectedSlotId: EquipSlotId | null;
+    equipmentState: Record<EquipSlotId, EquipmentSlotState>;
+};
+
+type EquipmentPresetsState = Record<EquipmentPresetId, EquipmentPresetState>;
+
+type EnhancementTotals = {
+    mesoSpent: number;
+    destructionCount: number;
+};
+
 type FlameScoreSettings = {
     primaryStat: CoreStat;
     secondaryStat: CoreStat;
@@ -481,13 +501,16 @@ type EquipmentSetupClipboardPayload = {
     type: "mapletools:equipment-setup";
     version: 1;
     jobType: JobType;
-    selectedSlotId: EquipSlotId;
+    selectedSlotId: EquipSlotId | null;
     flameScoreSettings: FlameScoreSettings;
     equipmentState: Record<EquipSlotId, EquipmentSlotState>;
 };
 
 const EQUIPMENT_SETUP_CLIPBOARD_TYPE = "mapletools:equipment-setup";
 const EQUIPMENT_SETUP_CLIPBOARD_VERSION = 1;
+const EQUIPMENT_SETUP_PRESETS_STORAGE_KEY = "equipmentSetupPresets";
+const EQUIPMENT_SETUP_ACTIVE_PRESET_STORAGE_KEY = "equipmentSetupActivePreset";
+const LEGACY_EQUIPMENT_SETUP_STORAGE_KEY = "equipmentSetupTracker";
 
 const clampNumber = (value: number, min: number, max: number) =>
     Math.min(max, Math.max(min, value));
@@ -865,6 +888,20 @@ const calculateSlotPotentialStats = (
         [...slot.potential.lines, ...slot.bonusPotential.lines],
         settings,
         kind
+    );
+
+const calculateEnhancementTotals = (
+    equipmentState: Record<EquipSlotId, EquipmentSlotState>
+): EnhancementTotals =>
+    EQUIP_SLOT_IDS.reduce(
+        (totals, slotId) => ({
+            mesoSpent:
+                totals.mesoSpent + equipmentState[slotId].mesoSpent,
+            destructionCount:
+                totals.destructionCount +
+                equipmentState[slotId].destructionCount,
+        }),
+        { mesoSpent: 0, destructionCount: 0 }
     );
 
 const formatGeneralPotentialPercent = (stats: PotentialStatTotals) =>
@@ -1285,6 +1322,10 @@ const isJobType = (value: unknown): value is JobType =>
 const isEquipSlotId = (value: unknown): value is EquipSlotId =>
     typeof value === "string" && EQUIP_SLOT_IDS.includes(value as EquipSlotId);
 
+const isEquipmentPresetId = (value: unknown): value is EquipmentPresetId =>
+    typeof value === "string" &&
+    EQUIPMENT_PRESET_IDS.includes(value as EquipmentPresetId);
+
 const isPotentialRank = (value: unknown): value is PotentialRank =>
     typeof value === "string" &&
     POTENTIAL_RANK_VALUES.includes(value as PotentialRank);
@@ -1484,22 +1525,27 @@ const DEFAULT_ITEMS: Partial<Record<EquipKind, string>> = {
     hat: "faf-warrior-hat",
     emblem: "mithra-rage-warrior",
     face: "twilight-mark",
-    badge: "genesis-badge",
+    badge: "ventus-badge",
     eye: "papulatus-mark",
     earring: "superior-gollux-earrings",
     medal: "seven-day-monster-parker",
-    weapon: "destiny-tuner",
+    weapon: "genesis-tuner",
     top: "faf-warrior-top",
     shoulder: "acs-shoulder",
     secondary: "astra-bracelet",
-    pocket: "will-red-book",
+    pocket: "phg",
     belt: "superior-gollux-belt",
     bottom: "faf-warrior-bottom",
     gloves: "acs-gloves",
     cape: "acs-cape",
     shoes: "acs-shoes",
     android: "broid",
-    heart: "outlaw-heart",
+    heart: "fairy-heart",
+};
+
+const DEFAULT_SLOT_ITEMS: Partial<Record<EquipSlotId, string>> = {
+    "ring-4": "ring-of-restraint",
+    eye: "black-bean-mark",
 };
 
 const noFlameKinds = new Set<EquipKind>([
@@ -1537,35 +1583,40 @@ const JOB_DEFAULT_ITEMS: Record<JobType, Partial<Record<EquipKind, string>>> = {
         hat: "faf-warrior-hat",
         top: "faf-warrior-top",
         bottom: "faf-warrior-bottom",
-        weapon: "destiny-longsword",
+        weapon: "genesis-longsword",
     },
     magician: {
         hat: "faf-mage-hat",
         top: "faf-mage-top",
         bottom: "faf-mage-bottom",
-        weapon: "destiny-staff",
+        weapon: "genesis-staff",
     },
     archer: {
         hat: "faf-archer-hat",
         top: "faf-archer-top",
         bottom: "faf-archer-bottom",
-        weapon: "destiny-bow",
+        weapon: "genesis-bow",
     },
     thief: {
         hat: "faf-thief-hat",
         top: "faf-thief-top",
         bottom: "faf-thief-bottom",
-        weapon: "destiny-dagger",
+        weapon: "genesis-dagger",
     },
     pirate: {
         hat: "faf-pirate-hat",
         top: "faf-pirate-top",
         bottom: "faf-pirate-bottom",
-        weapon: "destiny-tuner",
+        weapon: "genesis-knuckle",
     },
 };
 
-const getDefaultCatalogItem = (kind: EquipKind, jobType: JobType) =>
+const getDefaultCatalogItem = (
+    slotId: EquipSlotId,
+    kind: EquipKind,
+    jobType: JobType
+) =>
+    getCatalogItem(kind, DEFAULT_SLOT_ITEMS[slotId] || "", jobType) ||
     getCatalogItem(kind, JOB_DEFAULT_ITEMS[jobType][kind] || "", jobType) ||
     getCatalogItem(kind, DEFAULT_ITEMS[kind] || "", jobType) ||
     getFilteredCatalogItems(kind, jobType)[0] ||
@@ -1576,7 +1627,7 @@ const createEmptySlot = (
     jobType: JobType = DEFAULT_JOB_TYPE
 ): EquipmentSlotState => {
     const kind = slotKind(slotId);
-    const item = getDefaultCatalogItem(kind, jobType);
+    const item = getDefaultCatalogItem(slotId, kind, jobType);
 
     return {
         itemId: item?.id || "",
@@ -1599,6 +1650,23 @@ const createInitialState = (
     Object.fromEntries(
         EQUIP_SLOT_IDS.map((slotId) => [slotId, createEmptySlot(slotId, jobType)])
     ) as Record<EquipSlotId, EquipmentSlotState>;
+
+const createInitialPresetState = (
+    jobType: JobType = DEFAULT_JOB_TYPE
+): EquipmentPresetState => ({
+    selectedSlotId: null,
+    equipmentState: createInitialState(jobType),
+});
+
+const createInitialPresets = (
+    jobType: JobType = DEFAULT_JOB_TYPE
+): EquipmentPresetsState =>
+    Object.fromEntries(
+        EQUIPMENT_PRESET_IDS.map((presetId) => [
+            presetId,
+            createInitialPresetState(jobType),
+        ])
+    ) as EquipmentPresetsState;
 
 const loadStoredJobType = (): JobType => {
     if (typeof window === "undefined") {
@@ -1822,6 +1890,37 @@ const normalizeEquipmentState = (
     ) as Record<EquipSlotId, EquipmentSlotState>;
 };
 
+const normalizeEquipmentPresetState = (
+    jobType: JobType = DEFAULT_JOB_TYPE,
+    rawPreset?: unknown
+): EquipmentPresetState => {
+    const parsedPreset = isRecord(rawPreset) ? rawPreset : {};
+
+    return {
+        selectedSlotId: isEquipSlotId(parsedPreset.selectedSlotId)
+            ? parsedPreset.selectedSlotId
+            : null,
+        equipmentState: normalizeEquipmentState(
+            jobType,
+            parsedPreset.equipmentState
+        ),
+    };
+};
+
+const normalizeEquipmentPresets = (
+    jobType: JobType = DEFAULT_JOB_TYPE,
+    rawPresets?: unknown
+): EquipmentPresetsState => {
+    const parsedPresets = isRecord(rawPresets) ? rawPresets : {};
+
+    return Object.fromEntries(
+        EQUIPMENT_PRESET_IDS.map((presetId) => [
+            presetId,
+            normalizeEquipmentPresetState(jobType, parsedPresets[presetId]),
+        ])
+    ) as EquipmentPresetsState;
+};
+
 const loadStoredState = (
     jobType: JobType = DEFAULT_JOB_TYPE
 ): Record<EquipSlotId, EquipmentSlotState> => {
@@ -1830,7 +1929,9 @@ const loadStoredState = (
     }
 
     try {
-        const rawState = window.localStorage.getItem("equipmentSetupTracker");
+        const rawState = window.localStorage.getItem(
+            LEGACY_EQUIPMENT_SETUP_STORAGE_KEY
+        );
         if (!rawState) {
             return normalizeEquipmentState(jobType);
         }
@@ -1841,9 +1942,47 @@ const loadStoredState = (
     }
 };
 
+const loadStoredPresets = (
+    jobType: JobType = DEFAULT_JOB_TYPE
+): EquipmentPresetsState => {
+    if (typeof window === "undefined") {
+        return createInitialPresets(jobType);
+    }
+
+    try {
+        const rawPresets = window.localStorage.getItem(
+            EQUIPMENT_SETUP_PRESETS_STORAGE_KEY
+        );
+        if (rawPresets) {
+            return normalizeEquipmentPresets(jobType, JSON.parse(rawPresets));
+        }
+    } catch {
+        return createInitialPresets(jobType);
+    }
+
+    return {
+        ...createInitialPresets(jobType),
+        "preset-1": {
+            selectedSlotId: null,
+            equipmentState: loadStoredState(jobType),
+        },
+    };
+};
+
+const loadStoredActivePresetId = (): EquipmentPresetId => {
+    if (typeof window === "undefined") {
+        return "preset-1";
+    }
+
+    const storedPresetId = window.localStorage.getItem(
+        EQUIPMENT_SETUP_ACTIVE_PRESET_STORAGE_KEY
+    );
+    return isEquipmentPresetId(storedPresetId) ? storedPresetId : "preset-1";
+};
+
 const createEquipmentSetupClipboardText = (
     jobType: JobType,
-    selectedSlotId: EquipSlotId,
+    selectedSlotId: EquipSlotId | null,
     flameScoreSettings: FlameScoreSettings,
     equipmentState: Record<EquipSlotId, EquipmentSlotState>
 ) =>
@@ -1878,7 +2017,7 @@ const parseEquipmentSetupClipboardText = (text: string) => {
         jobType,
         selectedSlotId: isEquipSlotId(parsed.selectedSlotId)
             ? parsed.selectedSlotId
-            : "weapon",
+            : null,
         flameScoreSettings: normalizeFlameScoreSettings(
             isRecord(parsed.flameScoreSettings)
                 ? (parsed.flameScoreSettings as Partial<
@@ -1922,16 +2061,14 @@ const readClipboardText = async () => {
 };
 
 function EquipmentSetup() {
-    const [selectedSlotId, setSelectedSlotId] =
-        React.useState<EquipSlotId>("weapon");
+    const [activePresetId, setActivePresetId] =
+        React.useState<EquipmentPresetId>("preset-1");
     const [selectedJobType, setSelectedJobType] =
         React.useState<JobType>(DEFAULT_JOB_TYPE);
     const [flameScoreSettings, setFlameScoreSettings] =
         React.useState<FlameScoreSettings>(DEFAULT_FLAME_SCORE_SETTINGS);
-    const [equipmentState, setEquipmentState] =
-        React.useState<Record<EquipSlotId, EquipmentSlotState>>(
-            createInitialState
-        );
+    const [equipmentPresets, setEquipmentPresets] =
+        React.useState<EquipmentPresetsState>(createInitialPresets);
     const [isLoaded, setIsLoaded] = React.useState(false);
     const [setupTransferStatus, setSetupTransferStatus] = React.useState("");
 
@@ -1940,8 +2077,9 @@ function EquipmentSetup() {
         // Restore browser-only state after hydration.
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setSelectedJobType(storedJobType);
+        setActivePresetId(loadStoredActivePresetId());
         setFlameScoreSettings(loadStoredFlameScoreSettings(storedJobType));
-        setEquipmentState(loadStoredState(storedJobType));
+        setEquipmentPresets(loadStoredPresets(storedJobType));
         setIsLoaded(true);
     }, []);
 
@@ -1951,15 +2089,25 @@ function EquipmentSetup() {
         }
 
         localStorage.setItem(
-            "equipmentSetupTracker",
-            JSON.stringify(equipmentState)
+            EQUIPMENT_SETUP_PRESETS_STORAGE_KEY,
+            JSON.stringify(equipmentPresets)
+        );
+        localStorage.setItem(
+            EQUIPMENT_SETUP_ACTIVE_PRESET_STORAGE_KEY,
+            activePresetId
         );
         localStorage.setItem("equipmentSetupJobType", selectedJobType);
         localStorage.setItem(
             "equipmentFlameScoreSettings",
             JSON.stringify(flameScoreSettings)
         );
-    }, [equipmentState, flameScoreSettings, isLoaded, selectedJobType]);
+    }, [
+        activePresetId,
+        equipmentPresets,
+        flameScoreSettings,
+        isLoaded,
+        selectedJobType,
+    ]);
 
     React.useEffect(() => {
         if (!setupTransferStatus) {
@@ -1974,18 +2122,32 @@ function EquipmentSetup() {
         return () => window.clearTimeout(timeoutId);
     }, [setupTransferStatus]);
 
-    const selectedSlot = equipmentState[selectedSlotId];
-    const selectedKind = slotKind(selectedSlotId);
-    const selectedCatalogItems = getFilteredCatalogItems(
-        selectedKind,
-        selectedJobType
-    );
+    const activePreset =
+        equipmentPresets[activePresetId] ||
+        createInitialPresetState(selectedJobType);
+    const equipmentState = activePreset.equipmentState;
+    const selectedSlotId = activePreset.selectedSlotId;
+    const selectedSlot = selectedSlotId
+        ? equipmentState[selectedSlotId]
+        : undefined;
+    const selectedKind = selectedSlotId ? slotKind(selectedSlotId) : undefined;
+    const selectedCatalogItems = selectedKind
+        ? getFilteredCatalogItems(selectedKind, selectedJobType)
+        : [];
     const selectedCatalogItem =
-        getCatalogItem(selectedKind, selectedSlot.itemId, selectedJobType) ||
-        selectedCatalogItems.find((item) => item.name === selectedSlot.itemName);
+        selectedKind && selectedSlot
+            ? getCatalogItem(selectedKind, selectedSlot.itemId, selectedJobType) ||
+              selectedCatalogItems.find(
+                  (item) => item.name === selectedSlot.itemName
+              )
+            : undefined;
     const countedSetEffects = React.useMemo(
         () => getCountedSetEffects(equipmentState, selectedJobType),
         [equipmentState, selectedJobType]
+    );
+    const enhancementTotals = React.useMemo(
+        () => calculateEnhancementTotals(equipmentState),
+        [equipmentState]
     );
 
     const updateJobType = (jobType: JobType) => {
@@ -1995,17 +2157,46 @@ function EquipmentSetup() {
         );
     };
 
-    const updateSelectedSlot = (patch: Partial<EquipmentSlotState>) => {
-        setEquipmentState((prev) => ({
+    const updateActivePreset = (
+        updater: (preset: EquipmentPresetState) => EquipmentPresetState
+    ) => {
+        setEquipmentPresets((prev) => ({
             ...prev,
-            [selectedSlotId]: {
-                ...prev[selectedSlotId],
-                ...patch,
+            [activePresetId]: updater(
+                prev[activePresetId] || createInitialPresetState(selectedJobType)
+            ),
+        }));
+    };
+
+    const selectSlot = (slotId: EquipSlotId) => {
+        updateActivePreset((preset) => ({
+            ...preset,
+            selectedSlotId: slotId,
+        }));
+    };
+
+    const updateSelectedSlot = (patch: Partial<EquipmentSlotState>) => {
+        if (!selectedSlotId) {
+            return;
+        }
+
+        updateActivePreset((preset) => ({
+            ...preset,
+            equipmentState: {
+                ...preset.equipmentState,
+                [selectedSlotId]: {
+                    ...preset.equipmentState[selectedSlotId],
+                    ...patch,
+                },
             },
         }));
     };
 
     const selectCatalogItem = (itemId: string) => {
+        if (!selectedKind || !selectedSlot) {
+            return;
+        }
+
         const item = getCatalogItem(selectedKind, itemId, selectedJobType);
 
         if (!item) {
@@ -2038,6 +2229,10 @@ function EquipmentSetup() {
         index: number,
         value: string
     ) => {
+        if (!selectedSlot) {
+            return;
+        }
+
         const lines = [...selectedSlot[key].lines];
         lines[index] = value;
 
@@ -2053,6 +2248,10 @@ function EquipmentSetup() {
         index: number,
         patch: Partial<FlameLine>
     ) => {
+        if (!selectedSlot) {
+            return;
+        }
+
         const flames = selectedSlot.flames.map((line, lineIndex) =>
             lineIndex === index ? { ...line, ...patch } : line
         );
@@ -2061,12 +2260,15 @@ function EquipmentSetup() {
     };
 
     const resetSelectedSlot = () => {
+        if (!selectedSlotId) {
+            return;
+        }
+
         updateSelectedSlot(createEmptySlot(selectedSlotId, selectedJobType));
     };
 
     const resetAllSlots = () => {
-        setEquipmentState(createInitialState(selectedJobType));
-        setSelectedSlotId("weapon");
+        updateActivePreset(() => createInitialPresetState(selectedJobType));
     };
 
     const copyEquipmentSetup = async () => {
@@ -2079,7 +2281,7 @@ function EquipmentSetup() {
                     equipmentState
                 )
             );
-            setSetupTransferStatus("Setup copied");
+            setSetupTransferStatus("Preset copied");
         } catch {
             setSetupTransferStatus("Copy failed");
         }
@@ -2093,9 +2295,14 @@ function EquipmentSetup() {
 
             setSelectedJobType(importedSetup.jobType);
             setFlameScoreSettings(importedSetup.flameScoreSettings);
-            setEquipmentState(importedSetup.equipmentState);
-            setSelectedSlotId(importedSetup.selectedSlotId);
-            setSetupTransferStatus("Setup pasted");
+            setEquipmentPresets((prev) => ({
+                ...prev,
+                [activePresetId]: {
+                    selectedSlotId: importedSetup.selectedSlotId,
+                    equipmentState: importedSetup.equipmentState,
+                },
+            }));
+            setSetupTransferStatus("Preset pasted");
         } catch {
             setSetupTransferStatus("Paste failed");
         }
@@ -2111,6 +2318,12 @@ function EquipmentSetup() {
                 onPasteSetup={pasteEquipmentSetup}
             />
 
+            <PresetTabsPanel
+                activePresetId={activePresetId}
+                enhancementTotals={enhancementTotals}
+                onChange={setActivePresetId}
+            />
+
             <div className="grid gap-4 xl:grid-cols-[minmax(250px,0.9fr)_minmax(480px,1.15fr)_minmax(430px,2fr)]">
                 <SetEffectsPanel setEffects={countedSetEffects} />
                 <div className="min-w-0">
@@ -2119,31 +2332,92 @@ function EquipmentSetup() {
                         flameScoreSettings={flameScoreSettings}
                         selectedJobType={selectedJobType}
                         selectedSlotId={selectedSlotId}
-                        onSelectSlot={setSelectedSlotId}
+                        onSelectSlot={selectSlot}
                     />
-                    <EnhancementMemoPanel
+                    {selectedSlot ? (
+                        <EnhancementMemoPanel
+                            selectedSlot={selectedSlot}
+                            onSlotChange={updateSelectedSlot}
+                        />
+                    ) : null}
+                </div>
+                {selectedSlotId && selectedKind && selectedSlot ? (
+                    <SelectedEquipmentPanel
+                        selectedCatalogItem={selectedCatalogItem}
+                        selectedCatalogItems={selectedCatalogItems}
+                        selectedJobType={selectedJobType}
+                        selectedKind={selectedKind}
                         selectedSlot={selectedSlot}
+                        selectedSlotId={selectedSlotId}
+                        flameScoreSettings={flameScoreSettings}
+                        onFlameScoreSettingsChange={setFlameScoreSettings}
+                        onFlameLineChange={updateFlameLine}
+                        onPotentialLineChange={updatePotentialLine}
+                        onResetAll={resetAllSlots}
+                        onResetSlot={resetSelectedSlot}
+                        onSelectCatalogItem={selectCatalogItem}
                         onSlotChange={updateSelectedSlot}
                     />
-                </div>
-                <SelectedEquipmentPanel
-                    selectedCatalogItem={selectedCatalogItem}
-                    selectedCatalogItems={selectedCatalogItems}
-                    selectedJobType={selectedJobType}
-                    selectedKind={selectedKind}
-                    selectedSlot={selectedSlot}
-                    selectedSlotId={selectedSlotId}
-                    flameScoreSettings={flameScoreSettings}
-                    onFlameScoreSettingsChange={setFlameScoreSettings}
-                    onFlameLineChange={updateFlameLine}
-                    onPotentialLineChange={updatePotentialLine}
-                    onResetAll={resetAllSlots}
-                    onResetSlot={resetSelectedSlot}
-                    onSelectCatalogItem={selectCatalogItem}
-                    onSlotChange={updateSelectedSlot}
-                />
+                ) : (
+                    <SelectedEquipmentEmptyPanel onResetAll={resetAllSlots} />
+                )}
             </div>
         </InfoBlock>
+    );
+}
+
+function PresetTabsPanel({
+    activePresetId,
+    enhancementTotals,
+    onChange,
+}: Readonly<{
+    activePresetId: EquipmentPresetId;
+    enhancementTotals: EnhancementTotals;
+    onChange: (presetId: EquipmentPresetId) => void;
+}>) {
+    return (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-slate-700 bg-slate-900/80 p-2 text-sm">
+            <div
+                className="flex flex-wrap gap-1 rounded-md bg-slate-950 p-1"
+                role="tablist"
+                aria-label="Equipment presets"
+            >
+                {EQUIPMENT_PRESET_IDS.map((presetId) => {
+                    const isSelected = presetId === activePresetId;
+
+                    return (
+                        <button
+                            type="button"
+                            className={`rounded px-3 py-1.5 text-sm font-semibold transition-colors ${
+                                isSelected
+                                    ? "bg-primary text-slate-950"
+                                    : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                            }`}
+                            role="tab"
+                            aria-selected={isSelected}
+                            onClick={() => onChange(presetId)}
+                            key={presetId}
+                        >
+                            {EQUIPMENT_PRESET_LABELS[presetId]}
+                        </button>
+                    );
+                })}
+            </div>
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-2 text-xs">
+                <span className="rounded-md border border-slate-700 bg-slate-950 px-3 py-1.5 text-slate-300">
+                    Meso spent{" "}
+                    <strong className="ml-1 text-white">
+                        {formatInteger(enhancementTotals.mesoSpent)}
+                    </strong>
+                </span>
+                <span className="flex items-center gap-1 rounded-md border border-slate-700 bg-slate-950 px-3 py-1.5 text-slate-300">
+                    <TrashIndicatorIcon />
+                    <strong className="text-white">
+                        {formatInteger(enhancementTotals.destructionCount)}
+                    </strong>
+                </span>
+            </div>
+        </div>
     );
 }
 
@@ -2157,7 +2431,7 @@ function EquipmentGridPanel({
     equipmentState: Record<EquipSlotId, EquipmentSlotState>;
     flameScoreSettings: FlameScoreSettings;
     selectedJobType: JobType;
-    selectedSlotId: EquipSlotId;
+    selectedSlotId: EquipSlotId | null;
     onSelectSlot: (slotId: EquipSlotId) => void;
 }>) {
     return (
@@ -2466,7 +2740,7 @@ function SelectedEquipmentPanel({
                         className="rounded-md border border-red-300/70 px-3 py-1 text-sm text-red-200 hover:bg-red-400/20"
                         onClick={onResetAll}
                     >
-                        Reset All
+                        Reset Preset
                     </button>
                 </div>
             </div>
@@ -2654,6 +2928,34 @@ function SelectedEquipmentPanel({
     );
 }
 
+function SelectedEquipmentEmptyPanel({
+    onResetAll,
+}: Readonly<{
+    onResetAll: () => void;
+}>) {
+    return (
+        <div className="min-w-0 rounded-md border border-slate-600 bg-slate-800/60 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                    <div className="text-xs uppercase text-slate-300">
+                        Equipment
+                    </div>
+                    <div className="font-bold text-slate-200">
+                        No equipment selected
+                    </div>
+                </div>
+                <button
+                    type="button"
+                    className="rounded-md border border-red-300/70 px-3 py-1 text-sm text-red-200 hover:bg-red-400/20"
+                    onClick={onResetAll}
+                >
+                    Reset Preset
+                </button>
+            </div>
+        </div>
+    );
+}
+
 function JobTypeSelector({
     selectedJobType,
     setupTransferStatus,
@@ -2706,14 +3008,14 @@ function JobTypeSelector({
                     className="rounded-md border border-slate-600 px-3 py-1.5 text-sm text-slate-200 transition-colors hover:border-primary hover:text-primary"
                     onClick={onCopySetup}
                 >
-                    Copy Setup
+                    Copy Preset
                 </button>
                 <button
                     type="button"
                     className="rounded-md border border-slate-600 px-3 py-1.5 text-sm text-slate-200 transition-colors hover:border-primary hover:text-primary"
                     onClick={onPasteSetup}
                 >
-                    Paste Setup
+                    Paste Preset
                 </button>
             </div>
         </div>
