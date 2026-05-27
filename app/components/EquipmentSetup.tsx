@@ -573,6 +573,19 @@ const getPotentialPercentValues = (rank: PotentialRank, level: number) => {
         .sort((a, b) => b - a);
 };
 
+const getAllStatPotentialPercentValueForRank = (
+    rank: Exclude<PotentialRank, "none">,
+    levelBucket: number
+) => {
+    const rankIndex = POTENTIAL_RANK_ORDER.indexOf(rank);
+    if (rankIndex <= 0) {
+        return undefined;
+    }
+
+    const sourceRank = POTENTIAL_RANK_ORDER[rankIndex - 1];
+    return POTENTIAL_PERCENT_VALUES[sourceRank][levelBucket];
+};
+
 const getAllStatPotentialPercentValues = (
     rank: PotentialRank,
     level: number
@@ -581,11 +594,15 @@ const getAllStatPotentialPercentValues = (
         return [];
     }
 
-    const rankIndex = POTENTIAL_RANK_ORDER.indexOf(rank);
     const levelBucket = getPotentialLevelBucket(level);
-    const sourceRank = POTENTIAL_RANK_ORDER[Math.max(0, rankIndex - 1)];
 
-    return [POTENTIAL_PERCENT_VALUES[sourceRank][levelBucket]];
+    return getAdjacentPotentialRanks(rank)
+        .map((rankKey) =>
+            getAllStatPotentialPercentValueForRank(rankKey, levelBucket)
+        )
+        .filter((value): value is number => typeof value === "number")
+        .filter((value, index, values) => values.indexOf(value) === index)
+        .sort((a, b) => b - a);
 };
 
 const WEAPON_POTENTIAL_KINDS = new Set<EquipKind>([
@@ -650,6 +667,8 @@ const getPotentialSuggestions = (
     const percentSuggestions = values.flatMap((value) => [
         `${settings.primaryStat} +${value}%`,
     ]);
+    const criticalDamageSuggestions =
+        kind === "gloves" ? ["Critical Damage +8%"] : [];
     const hpMpSuggestions = values.flatMap((value) => [
         `HP +${value}%`,
         `MP +${value}%`,
@@ -659,10 +678,10 @@ const getPotentialSuggestions = (
         ...percentSuggestions,
         ...allStatValues.map((value) => `All Stats +${value}%`),
         ...values.map((value) => `${attackLabel} +${value}%`),
+        ...criticalDamageSuggestions,
         ...hpMpSuggestions,
         "Boss Damage +40%",
         "Ignore DEF +40%",
-        "Critical Damage +8%",
         "Item Drop Rate +20%",
         "Meso Obtained +20%",
         "Cooldown -2 sec",
@@ -674,6 +693,7 @@ type PotentialStatTotals = {
     bossPercent: number;
     ignorePercent: number;
     generalPercent: number;
+    criticalDamagePercent: number;
 };
 
 const emptyPotentialStatTotals = (): PotentialStatTotals => ({
@@ -681,6 +701,7 @@ const emptyPotentialStatTotals = (): PotentialStatTotals => ({
     bossPercent: 0,
     ignorePercent: 0,
     generalPercent: 0,
+    criticalDamagePercent: 0,
 });
 
 const getFirstPotentialPercentValue = (line: string) => {
@@ -731,6 +752,12 @@ const isAllStatPotentialLine = (normalizedLine: string) =>
     normalizedLine.includes("올스탯") ||
     normalizedLine.includes("올스텟");
 
+const isCriticalDamagePotentialLine = (normalizedLine: string) =>
+    normalizedLine.includes("critical damage") ||
+    normalizedLine.includes("crit damage") ||
+    normalizedLine.includes("크리티컬 데미지") ||
+    normalizedLine.includes("크뎀");
+
 const isHpMpPotentialLine = (normalizedLine: string) =>
     /\b(?:max hp|hp|max mp|mp)\b/.test(normalizedLine) ||
     normalizedLine.includes("최대 hp") ||
@@ -777,9 +804,14 @@ const parsePotentialLineStats = (
     const primary = settings.primaryStat.toLowerCase();
     const isPrimaryStatLine = normalizedLine.includes(primary);
     const isAllStatLine = isAllStatPotentialLine(normalizedLine);
+    const isCriticalDamageLine = isCriticalDamagePotentialLine(normalizedLine);
+
+    if (kind === "gloves" && isCriticalDamageLine) {
+        totals.criticalDamagePercent += value;
+    }
 
     if (isPrimaryStatLine || isAllStatLine) {
-        totals.generalPercent = value;
+        totals.generalPercent += value;
     }
 
     return totals;
@@ -793,6 +825,8 @@ const addPotentialStatTotals = (
     bossPercent: total.bossPercent + next.bossPercent,
     ignorePercent: total.ignorePercent + next.ignorePercent,
     generalPercent: total.generalPercent + next.generalPercent,
+    criticalDamagePercent:
+        total.criticalDamagePercent + next.criticalDamagePercent,
 });
 
 const calculatePotentialStats = (
@@ -825,7 +859,15 @@ const formatPotentialStats = (
     kind: EquipKind
 ) => {
     if (!isWeaponPotentialKind(kind)) {
-        return `${formatScore(stats.generalPercent)}%`;
+        const parts = [];
+        if (kind === "gloves" && stats.criticalDamagePercent > 0) {
+            parts.push(`Crit ${formatScore(stats.criticalDamagePercent)}%`);
+        }
+        if (stats.generalPercent > 0) {
+            parts.push(`${formatScore(stats.generalPercent)}%`);
+        }
+
+        return parts.length > 0 ? parts.join(" / ") : "0%";
     }
 
     const parts = [];
@@ -847,16 +889,26 @@ const getPotentialGridBadges = (
     kind: EquipKind
 ) => {
     if (!isWeaponPotentialKind(kind)) {
-        return stats.generalPercent > 0
-            ? [
-                  {
-                      kind: "general" as const,
-                      label: "",
-                      value: `${formatScore(stats.generalPercent)}%`,
-                      title: "Potential",
-                  },
-              ]
-            : [];
+        return [
+            {
+                kind: "critical" as const,
+                value: stats.criticalDamagePercent,
+                title: "Critical Damage",
+                isVisible: kind === "gloves",
+            },
+            {
+                kind: "general" as const,
+                value: stats.generalPercent,
+                title: "Potential",
+                isVisible: true,
+            },
+        ]
+            .filter(({ isVisible, value }) => isVisible && value > 0)
+            .map(({ kind, value, title }) => ({
+                kind,
+                value: `${formatScore(value)}%`,
+                title,
+            }));
     }
 
     return [
@@ -987,6 +1039,10 @@ const inferPotentialLineRank = (
             rank,
             inferRankFromPotentialPercent(value, itemLevel, 1)
         );
+    }
+
+    if (kind === "gloves" && isCriticalDamagePotentialLine(normalizedLine)) {
+        return maxPotentialRank(rank, value >= 8 ? "legendary" : "none");
     }
 
     const primary = settings.primaryStat.toLowerCase();
@@ -2125,8 +2181,24 @@ function EquipmentGridPanel({
 function PotentialBadgeIcon({
     kind,
 }: Readonly<{
-    kind: "general" | "attack" | "boss" | "ignore";
+    kind: "general" | "attack" | "boss" | "ignore" | "critical";
 }>) {
+    if (kind === "critical") {
+        return (
+            <svg
+                viewBox="0 0 16 16"
+                className="h-[1em] w-[1em] shrink-0"
+                aria-hidden="true"
+                focusable="false"
+            >
+                <path
+                    fill="currentColor"
+                    d="M7.2 1.2c.6 0 1 .4 1 1v5.3h.7V3.1c0-.5.4-1 .9-1s.9.4.9 1v4.4h.7V4.2c0-.5.4-.9.9-.9s.9.4.9.9v4.1l.4-.6c.3-.5.9-.6 1.3-.3.5.3.6.8.4 1.3l-1.9 3.5c-.7 1.3-2 2.1-3.5 2.1H7.2c-2.2 0-4-1.8-4-4V6.8c0-.5.4-.9.9-.9s.9.4.9.9v2.4h.7v-7c0-.6.4-1 1-1 .2 0 .4.1.5.2Z"
+                />
+            </svg>
+        );
+    }
+
     if (kind === "attack") {
         return (
             <svg
@@ -3317,6 +3389,18 @@ function PotentialEditor({
         suggestionRank,
         itemLevel
     );
+    const allStatPercentValues = getAllStatPotentialPercentValues(
+        suggestionRank,
+        itemLevel
+    );
+    const possibleLineLabels = [
+        percentValues.length > 0
+            ? `Stat ${percentValues.join(" / ")}`
+            : undefined,
+        allStatPercentValues.length > 0
+            ? `All Stat ${allStatPercentValues.join(" / ")}`
+            : undefined,
+    ].filter((label): label is string => Boolean(label));
     const metricLabel = getPotentialMetricLabel(
         equipKind,
         settings,
@@ -3365,10 +3449,10 @@ function PotentialEditor({
                     {POTENTIAL_LABELS[inferredRank]}
                 </span>
             </div>
-            {percentValues.length > 0 ? (
+            {possibleLineLabels.length > 0 ? (
                 <div className="mb-2 text-xs text-slate-400">
                     Lv. {itemLevel || "-"} possible % lines:{" "}
-                    {percentValues.join(" / ")}
+                    {possibleLineLabels.join("; ")}
                 </div>
             ) : null}
             <div className="grid gap-2">
