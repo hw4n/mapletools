@@ -551,15 +551,23 @@ const getPotentialLevelBucket = (level: number) => {
     return 0;
 };
 
-const getPotentialPercentValues = (rank: PotentialRank, level: number) => {
+const getAdjacentPotentialRanks = (rank: PotentialRank) => {
     if (rank === "none") {
         return [];
     }
 
     const rankIndex = POTENTIAL_RANK_ORDER.indexOf(rank);
+    return POTENTIAL_RANK_ORDER.slice(Math.max(0, rankIndex - 1), rankIndex + 1);
+};
+
+const getPotentialPercentValues = (rank: PotentialRank, level: number) => {
+    if (rank === "none") {
+        return [];
+    }
+
     const levelBucket = getPotentialLevelBucket(level);
 
-    return POTENTIAL_RANK_ORDER.slice(0, rankIndex + 1)
+    return getAdjacentPotentialRanks(rank)
         .map((rankKey) => POTENTIAL_PERCENT_VALUES[rankKey][levelBucket])
         .filter((value, index, values) => values.indexOf(value) === index)
         .sort((a, b) => b - a);
@@ -575,15 +583,9 @@ const getAllStatPotentialPercentValues = (
 
     const rankIndex = POTENTIAL_RANK_ORDER.indexOf(rank);
     const levelBucket = getPotentialLevelBucket(level);
+    const sourceRank = POTENTIAL_RANK_ORDER[Math.max(0, rankIndex - 1)];
 
-    return POTENTIAL_RANK_ORDER.slice(0, rankIndex + 1)
-        .map((_, index) => {
-            const sourceRank =
-                POTENTIAL_RANK_ORDER[Math.max(0, index - 1)];
-            return POTENTIAL_PERCENT_VALUES[sourceRank][levelBucket];
-        })
-        .filter((value, index, values) => values.indexOf(value) === index)
-        .sort((a, b) => b - a);
+    return [POTENTIAL_PERCENT_VALUES[sourceRank][levelBucket]];
 };
 
 const WEAPON_POTENTIAL_KINDS = new Set<EquipKind>([
@@ -648,18 +650,22 @@ const getPotentialSuggestions = (
     const percentSuggestions = values.flatMap((value) => [
         `${settings.primaryStat} +${value}%`,
     ]);
+    const hpMpSuggestions = values.flatMap((value) => [
+        `HP +${value}%`,
+        `MP +${value}%`,
+    ]);
 
     return [
         ...percentSuggestions,
         ...allStatValues.map((value) => `All Stats +${value}%`),
         ...values.map((value) => `${attackLabel} +${value}%`),
+        ...hpMpSuggestions,
         "Boss Damage +40%",
         "Ignore DEF +40%",
         "Critical Damage +8%",
         "Item Drop Rate +20%",
         "Meso Obtained +20%",
         "Cooldown -2 sec",
-        "HP +12%",
     ];
 };
 
@@ -724,6 +730,11 @@ const isAllStatPotentialLine = (normalizedLine: string) =>
     normalizedLine.includes("all stats") ||
     normalizedLine.includes("올스탯") ||
     normalizedLine.includes("올스텟");
+
+const isHpMpPotentialLine = (normalizedLine: string) =>
+    /\b(?:max hp|hp|max mp|mp)\b/.test(normalizedLine) ||
+    normalizedLine.includes("최대 hp") ||
+    normalizedLine.includes("최대 mp");
 
 const parsePotentialLineStats = (
     line: string,
@@ -980,6 +991,7 @@ const inferPotentialLineRank = (
 
     const primary = settings.primaryStat.toLowerCase();
     if (
+        isHpMpPotentialLine(normalizedLine) ||
         isAttackPotentialLine(normalizedLine) ||
         normalizedLine.includes(primary) ||
         (isWeaponPotentialKind(kind) &&
@@ -3301,12 +3313,10 @@ function PotentialEditor({
     );
     const suggestionRank: PotentialRank =
         inferredRank === "none" ? "legendary" : inferredRank;
-    const percentValues = [
-        ...getPotentialPercentValues("legendary", itemLevel),
-        ...getAllStatPotentialPercentValues("legendary", itemLevel),
-    ]
-        .filter((value, index, values) => values.indexOf(value) === index)
-        .sort((a, b) => b - a);
+    const percentValues = getPotentialPercentValues(
+        suggestionRank,
+        itemLevel
+    );
     const metricLabel = getPotentialMetricLabel(
         equipKind,
         settings,
