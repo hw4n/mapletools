@@ -1,4 +1,5 @@
 import React from "react";
+import Image from "next/image";
 
 function IconLine({
     children,
@@ -6,7 +7,14 @@ function IconLine({
 }: Readonly<{ children: React.ReactNode; src: string }>) {
     return (
         <div className="flex items-center">
-            <img src={src} className="w-9 h-9 object-contain" />
+            <Image
+                src={src}
+                alt=""
+                width={36}
+                height={36}
+                unoptimized
+                className="h-9 w-9 object-contain"
+            />
             {children}
         </div>
     );

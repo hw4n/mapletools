@@ -1,4 +1,5 @@
 import React, { useEffect } from "react";
+import Image from "next/image";
 import InfoBlock from "./InfoBlock";
 import IconLine from "./IconLine";
 
@@ -220,7 +221,14 @@ function Hexa() {
         <InfoBlock title="hexa matrix" src="/image/hexa.png">
             <div className="flex items-center">
                 <div className="relative min-w-[35rem] min-h-[35rem]">
-                    <img src="/image/hexamatrix.webp" className="w-full" />
+                    <Image
+                        src="/image/hexamatrix.webp"
+                        alt=""
+                        width={560}
+                        height={560}
+                        unoptimized
+                        className="w-full"
+                    />
 
                     {hexacoreTypes.map((type) =>
                         hexacorePositions[type].map((position, i) => (

@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Image from "next/image";
 import InfoBlock from "./InfoBlock";
 import { ButtonGroup } from "./ui/ButtonGroup";
 import equipmentItems from "../data/equipment-items.json";
@@ -3710,9 +3711,12 @@ function EquipmentGridPanel({
     return (
         <div className="w-full min-w-0 overflow-x-auto">
             <div className="relative mx-auto w-full min-w-[480px]">
-                <img
+                <Image
                     src="/image/equipment/equip-tab.png"
                     alt="Equipment window"
+                    width={EQUIP_TAB_SIZE.width}
+                    height={EQUIP_TAB_SIZE.height}
+                    unoptimized
                     className="block w-full rounded-md [image-rendering:pixelated]"
                 />
                 <div className="absolute inset-0">
@@ -3910,9 +3914,12 @@ function EquipmentGridSlot({
             title={SLOT_LABELS[slotId]}
             aria-label={SLOT_LABELS[slotId]}
         >
-            <img
+            <Image
                 src={slot.itemImage}
                 alt=""
+                width={64}
+                height={64}
+                unoptimized
                 className="h-[76%] w-[76%] object-contain [image-rendering:pixelated]"
             />
             {starValue > 0 ||
@@ -3972,9 +3979,12 @@ function EquipmentGridSlot({
                     style={flameScoreTone?.container}
                     title="Flame score"
                 >
-                    <img
+                    <Image
                         src={BLACK_FLAME_ICON}
                         alt=""
+                        width={16}
+                        height={16}
+                        unoptimized
                         className="h-[1em] w-[1em] object-contain"
                     />
                     {formatScore(flameScore)}
@@ -4045,9 +4055,12 @@ function SelectedEquipmentPanel({
                         {SLOT_LABELS[selectedSlotId]}
                     </div>
                     <div className="flex items-center gap-2 font-bold text-primary">
-                        <img
+                        <Image
                             src={selectedSlot.itemImage}
                             alt=""
+                            width={36}
+                            height={36}
+                            unoptimized
                             className="h-9 w-9 object-contain"
                         />
                         <span>{selectedSlot.itemName}</span>
@@ -4245,9 +4258,12 @@ function SelectedEquipmentPanel({
                     <div className="grid content-start gap-2">
                         <div className="flex items-center justify-between gap-2 rounded-md bg-slate-950 px-3 py-2 text-sm">
                             <span className="flex items-center gap-2 text-slate-300">
-                                <img
+                                <Image
                                     src={BLACK_FLAME_ICON}
                                     alt=""
+                                    width={20}
+                                    height={20}
+                                    unoptimized
                                     className="h-5 w-5 object-contain"
                                 />
                                 Flame score
@@ -4504,9 +4520,12 @@ function FlameScoreSettingsPanel({
     return (
         <fieldset className="rounded-md border border-slate-700 bg-slate-950 p-3 text-sm">
             <legend className="flex items-center gap-2 px-1 font-bold uppercase text-slate-200">
-                <img
+                <Image
                     src={BLACK_FLAME_ICON}
                     alt=""
+                    width={20}
+                    height={20}
+                    unoptimized
                     className="h-5 w-5 object-contain"
                 />
                 Flame ratios
@@ -5425,9 +5444,12 @@ function EquipmentCatalogCombobox({
                 onClick={() => setIsOpen((open) => !open)}
             >
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-slate-950">
-                    <img
+                    <Image
                         src={selectedImage}
                         alt=""
+                        width={32}
+                        height={32}
+                        unoptimized
                         className="max-h-8 max-w-8 object-contain"
                     />
                 </span>
@@ -5491,9 +5513,12 @@ function EquipmentCatalogCombobox({
                                         key={item.id}
                                     >
                                         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-slate-900">
-                                            <img
+                                            <Image
                                                 src={item.imgPath}
                                                 alt=""
+                                                width={32}
+                                                height={32}
+                                                unoptimized
                                                 className="max-h-8 max-w-8 object-contain"
                                             />
                                         </span>

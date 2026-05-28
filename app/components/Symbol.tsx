@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect } from "react";
+import Image from "next/image";
 import InfoBlock from "./InfoBlock";
 import IconLine from "./IconLine";
 
@@ -63,6 +64,8 @@ const symbolReducer = (state: SymbolInfo, action: SymbolAction) => {
             return { ...state, symbolWeeklyThisWeek: action.payload };
         case "setSymbolExtra":
             return { ...state, symbolExtra: action.payload };
+        case "setSymbolRemaining":
+            return { ...state, symbolRemaining: action.payload };
         case "setSymbolMaxCost":
             return { ...state, symbolMaxCost: action.payload };
         case "setSymbolLevel":
@@ -91,30 +94,93 @@ function Symbol({
     calculateGrowth,
     calculateMesoCost,
 }: SymbolProps) {
-    const initialState: SymbolInfo = {
-        symbolDaily: true,
-        symbolPerDay: symbolDailyDefault,
-        symbolDailyToday: true,
-        symbolWeekly: symbolWeeklyDefault > 0,
-        symbolWeeklyThisWeek: true,
-        symbolExtra: true,
-        symbolInput: [[-1], [1, 0], [1, 0], [1, 0], [1, 0], [1, 0], [1, 0]],
-        symbolRemaining: [[-1], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]],
-        symbolMaxCost: [-1, 0],
-    };
+    const initialState = React.useMemo<SymbolInfo>(
+        () => ({
+            symbolDaily: true,
+            symbolPerDay: symbolDailyDefault,
+            symbolDailyToday: true,
+            symbolWeekly: symbolWeeklyDefault > 0,
+            symbolWeeklyThisWeek: true,
+            symbolExtra: true,
+            symbolInput: [
+                [-1],
+                [1, 0],
+                [1, 0],
+                [1, 0],
+                [1, 0],
+                [1, 0],
+                [1, 0],
+            ],
+            symbolRemaining: [
+                [-1],
+                [0, 0],
+                [0, 0],
+                [0, 0],
+                [0, 0],
+                [0, 0],
+                [0, 0],
+            ],
+            symbolMaxCost: [-1, 0],
+        }),
+        [symbolDailyDefault, symbolWeeklyDefault]
+    );
 
     const [symbolInfo, dispatch] = React.useReducer(
         symbolReducer,
         initialState
     );
 
-    function calculateSymbolRemainingUntilMax() {
-        const { symbolRemaining, symbolInput } = symbolInfo;
+    const {
+        symbolDaily,
+        symbolPerDay,
+        symbolDailyToday,
+        symbolWeekly,
+        symbolWeeklyThisWeek,
+        symbolInput,
+    } = symbolInfo;
 
-        const newRemaining = [...symbolRemaining];
+    const calculateDaysToMax = React.useCallback(
+        (remaining: number, additionalPerDay?: number) => {
+            const termination1 = !symbolDaily && !symbolWeekly;
+            const termination2 = symbolDaily && symbolPerDay === 0;
+            if (termination1 || termination2) {
+                return -1;
+            }
+
+            if (!symbolDailyToday) {
+                remaining -= symbolPerDay + (additionalPerDay || 0);
+            }
+            if (!symbolWeeklyThisWeek) {
+                remaining -= symbolWeeklyDefault;
+            }
+
+            let days = 0;
+
+            while (remaining > 0) {
+                days++;
+                if (symbolDaily)
+                    remaining -= symbolPerDay + (additionalPerDay || 0);
+                if (symbolWeekly && days % 7 === 0)
+                    remaining -= symbolWeeklyDefault;
+            }
+
+            return days;
+        },
+        [
+            symbolDaily,
+            symbolPerDay,
+            symbolDailyToday,
+            symbolWeekly,
+            symbolWeeklyThisWeek,
+            symbolWeeklyDefault,
+        ]
+    );
+
+    const calculateSymbolRemainingUntilMax = React.useCallback(() => {
+        const newRemaining = symbolInput.map((_, index) =>
+            index === 0 ? [-1] : [0, 0]
+        );
         for (let i = 1; i <= 6; i++) {
-            newRemaining[i][0] = 0;
-            newRemaining[i][1] = 0;
             for (
                 let symbolLevel = symbolInput[i][0];
                 symbolLevel < symbolMaxLevel;
@@ -144,42 +210,14 @@ function Symbol({
 
         dispatch({ type: "setSymbolRemaining", payload: newRemaining });
         dispatch({ type: "setSymbolMaxCost", payload: newSymbolMaxCost });
-    }
-
-    function calculateDaysToMax(remaining: number, additionalPerDay?: number) {
-        const {
-            symbolDaily,
-            symbolPerDay,
-            symbolDailyToday,
-            symbolWeekly,
-            symbolWeeklyThisWeek,
-        } = symbolInfo;
-
-        const termination1 = !symbolDaily && !symbolWeekly;
-        const termination2 = symbolDaily && symbolPerDay === 0;
-        if (termination1 || termination2) {
-            return -1;
-        }
-
-        if (!symbolDailyToday) {
-            remaining -= symbolPerDay + (additionalPerDay || 0);
-        }
-        if (!symbolWeeklyThisWeek) {
-            remaining -= symbolWeeklyDefault;
-        }
-
-        let days = 0;
-
-        while (remaining > 0) {
-            days++;
-            if (symbolDaily)
-                remaining -= symbolPerDay + (additionalPerDay || 0);
-            if (symbolWeekly && days % 7 === 0)
-                remaining -= symbolWeeklyDefault;
-        }
-
-        return days;
-    }
+    }, [
+        calculateDaysToMax,
+        calculateGrowth,
+        calculateMesoCost,
+        symbolInput,
+        symbolMaxLevel,
+        symbolShortName,
+    ]);
 
     function generateNormalizingPath() {
         const symbolRemaining = symbolInfo.symbolRemaining.map((x) => x[0]);
@@ -250,18 +288,18 @@ function Symbol({
             type: "readFromLocalStorage",
             payload: { ...initialState, ...symbolInfoFromLocalStorage },
         });
-    }, []);
+    }, [initialState, symbolName]);
 
     useEffect(() => {
         calculateSymbolRemainingUntilMax();
-    }, [symbolInfo.symbolInput]);
+    }, [calculateSymbolRemainingUntilMax]);
 
     useEffect(() => {
         localStorage.setItem(
             `symbolInfo${symbolName}`,
             JSON.stringify(symbolInfo)
         );
-    }, [symbolInfo]);
+    }, [symbolInfo, symbolName]);
 
     return (
         <InfoBlock
@@ -349,9 +387,13 @@ function Symbol({
                     </div>
                     <div className="flex mt-4">
                         <div className="flex flex-col items-center">
-                            <img
+                            <Image
                                 src={`/image/${symbolShortName}0.webp`}
-                                className="opacity-0"
+                                alt=""
+                                width={36}
+                                height={36}
+                                unoptimized
+                                className="h-9 w-9 opacity-0"
                             />
                             <div>Level</div>
                             <div>Equip</div>
@@ -361,9 +403,13 @@ function Symbol({
                                 className="flex flex-col items-center ml-3"
                                 key={i}
                             >
-                                <img
+                                <Image
                                     src={`/image/${symbolShortName}${i}.webp`}
-                                    className="w-9 h-9"
+                                    alt=""
+                                    width={36}
+                                    height={36}
+                                    unoptimized
+                                    className="h-9 w-9"
                                 />
                                 <input
                                     type="number"

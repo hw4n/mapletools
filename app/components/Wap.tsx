@@ -1,4 +1,5 @@
 import React, { useEffect, useReducer, useState } from "react";
+import Image from "next/image";
 import InfoBlock from "./InfoBlock";
 import IconLine from "./IconLine";
 
@@ -145,9 +146,13 @@ const Grind = () => {
                 %
             </div>
             <div className="mb-2 flex items-center">
-                <img
+                <Image
                     src="/image/wap.png"
-                    className="w-8 h-8 object-contain inline-block mr-1"
+                    alt=""
+                    width={32}
+                    height={32}
+                    unoptimized
+                    className="mr-1 inline-block h-8 w-8 object-contain"
                 />
                 <span>WAP</span>
                 <input
@@ -162,9 +167,13 @@ const Grind = () => {
                     }}
                 />
                 <span className="text-orange-400 mx-2"> or </span>
-                <img
+                <Image
                     src="/image/swap.png"
-                    className="w-8 h-8 object-contain inline-block mr-1"
+                    alt=""
+                    width={32}
+                    height={32}
+                    unoptimized
+                    className="mr-1 inline-block h-8 w-8 object-contain"
                 />
                 <span>SWAP </span>
                 <input

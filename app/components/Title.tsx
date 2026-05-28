@@ -1,4 +1,5 @@
 import React from "react";
+import Image from "next/image";
 
 function Title({
     src,
@@ -7,7 +8,16 @@ function Title({
 }: Readonly<{ src?: string; title: string; className?: string }>) {
     return (
         <div className="flex items-center mb-1">
-            {src ? <img src={src} className="w-9 h-9 object-contain" /> : null}
+            {src ? (
+                <Image
+                    src={src}
+                    alt=""
+                    width={36}
+                    height={36}
+                    unoptimized
+                    className="h-9 w-9 object-contain"
+                />
+            ) : null}
             {className?.includes("text-") ? (
                 <div
                     className={`text-xl font-bold ml-1 uppercase ${className}`}
