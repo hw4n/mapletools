@@ -451,6 +451,138 @@ const STAR_FORCE_LEVEL_CAPS = [
     { minLevel: 128, maxLevel: 137, normal: 20, superior: 12 },
     { minLevel: 138, maxLevel: Number.POSITIVE_INFINITY, normal: 30, superior: 15 },
 ];
+const NORMAL_STAR_FORCE_CLASS_STAT_CUMULATIVE = [
+    0, 2, 4, 6, 8, 10, 13, 16, 19, 22, 25, 28, 31, 34, 37, 40,
+] as const;
+const NORMAL_STAR_FORCE_HP_CUMULATIVE = [
+    0, 5, 10, 15, 25, 35, 50, 65, 85, 105, 130, 155, 180, 205, 230, 255,
+] as const;
+const ARMOR_GLOVE_ATTACK_CUMULATIVE = [
+    0, 0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 6, 7,
+] as const;
+const STAR_FORCE_NO_HP_KINDS = new Set<EquipKind>([
+    "gloves",
+    "shoes",
+    "face",
+    "eye",
+]);
+const ARMOR_STAR_FORCE_CLASS_CUMULATIVE: Record<
+    number,
+    readonly (number | null)[]
+> = {
+    16: [47, 49, 51, 53, 55, 57],
+    17: [54, 58, 62, 66, 70, 74],
+    18: [61, 67, 73, 79, 85, 91],
+    19: [68, 76, 84, 92, 100, 108],
+    20: [75, 85, 95, 105, 115, 125],
+    21: [null, 94, 106, 118, 130, 142],
+    22: [null, 103, 117, 131, 145, 159],
+    23: [null, 103, 117, 131, 145, 159],
+    24: [null, 103, 117, 131, 145, 159],
+    25: [null, 103, 117, 131, 145, 159],
+    26: [null, 103, 117, 131, 145, 159],
+    27: [null, 103, 117, 131, 145, 159],
+    28: [null, 103, 117, 131, 145, 159],
+    29: [null, 103, 117, 131, 145, 159],
+    30: [null, 103, 117, 131, 145, 159],
+};
+const ARMOR_STAR_FORCE_ATTACK_CUMULATIVE: Record<
+    number,
+    readonly (number | null)[]
+> = {
+    16: [7, 8, 9, 10, 12, 14],
+    17: [15, 17, 19, 21, 25, 29],
+    18: [24, 27, 30, 33, 39, 45],
+    19: [34, 38, 42, 46, 54, 62],
+    20: [45, 50, 55, 60, 70, 80],
+    21: [null, 63, 69, 75, 87, 99],
+    22: [null, 78, 85, 92, 106, 120],
+    23: [null, 95, 103, 111, 127, 143],
+    24: [null, 114, 123, 132, 150, 168],
+    25: [null, 135, 145, 155, 175, 195],
+    26: [null, 157, 168, 179, 201, 223],
+    27: [null, 180, 192, 204, 228, 252],
+    28: [null, 204, 217, 230, 256, 282],
+    29: [null, 229, 243, 257, 285, 313],
+    30: [null, 255, 270, 285, 315, 345],
+};
+const WEAPON_STAR_FORCE_CLASS_CUMULATIVE: Record<
+    number,
+    readonly (number | null)[]
+> = {
+    16: [47, 49, 51, 53, 55],
+    17: [54, 58, 62, 66, 70],
+    18: [61, 67, 73, 79, 85],
+    19: [68, 76, 84, 92, 100],
+    20: [75, 85, 95, 105, 115],
+    21: [null, 94, 106, 118, 130],
+    22: [null, 103, 117, 131, 145],
+    23: [null, 103, 117, 131, 145],
+    24: [null, 103, 117, 131, 145],
+    25: [null, 103, 117, 131, 145],
+};
+const WEAPON_STAR_FORCE_ATTACK_CUMULATIVE: Record<
+    number,
+    readonly (number | null)[]
+> = {
+    16: [6, 7, 8, 9, 13],
+    17: [13, 15, 17, 18, 26],
+    18: [20, 23, 26, 28, 40],
+    19: [28, 32, 36, 39, 54],
+    20: [37, 42, 47, 51, 69],
+    21: [null, 53, 59, 64, 85],
+    22: [null, 65, 72, 78, 102],
+    23: [null, 95, 103, 110, 136],
+    24: [null, 126, 135, 143, 171],
+    25: [null, 158, 168, 177, 207],
+};
+const BADGE_STAR_FORCE_ALL_STAT_CUMULATIVE: Record<
+    number,
+    readonly (number | null)[]
+> = {
+    16: [47, 49, 51, 53, 55, 59],
+    17: [54, 58, 62, 66, 70, 74],
+    18: [61, 67, 73, 79, 85, 91],
+    19: [68, 76, 84, 92, 100, 108],
+    20: [75, 85, 95, 105, 115, 125],
+    21: [null, 94, 104, 118, 130, 142],
+    22: [null, 103, 117, 131, 145, 159],
+};
+const SUPERIOR_STAR_FORCE_ALL_STAT_CUMULATIVE: Record<
+    number,
+    readonly (number | null)[]
+> = {
+    1: [1, 2, 4, 7, 9, 12, 14, 17, 19],
+    2: [3, 5, 9, 15, 19, 23, 29, 35, 39],
+    3: [7, 10, 16, 25, 31, 40, 46, 55, 61],
+    4: [null, null, 26, 38, 46, 58, 66, 78, 86],
+    5: [null, null, 40, 55, 65, 80, 90, 105, 115],
+    6: [null, null, null, null, 65, 80, 90, 105, 115],
+    7: [null, null, null, null, 65, 80, 90, 105, 115],
+    8: [null, null, null, null, 65, 80, 90, 105, 115],
+    9: [null, null, null, null, null, 80, 90, 105, 115],
+    10: [null, null, null, null, null, 80, 90, 105, 115],
+    11: [null, null, null, null, null, null, 90, 105, 115],
+    12: [null, null, null, null, null, null, 90, 105, 115],
+    13: [null, null, null, null, null, null, null, 105, 115],
+    14: [null, null, null, null, null, null, null, 105, 115],
+    15: [null, null, null, null, null, null, null, 105, 115],
+};
+const SUPERIOR_STAR_FORCE_ATTACK_CUMULATIVE: Record<
+    number,
+    readonly (number | null)[]
+> = {
+    6: [null, null, null, null, 5, 6, 7, 8, 9],
+    7: [null, null, null, null, 11, 13, 15, 17, 19],
+    8: [null, null, null, null, 18, 21, 24, 27, 30],
+    9: [null, null, null, null, null, 30, 34, 38, 42],
+    10: [null, null, null, null, null, 40, 45, 50, 55],
+    11: [null, null, null, null, null, null, 58, 64, 70],
+    12: [null, null, null, null, null, null, 73, 80, 87],
+    13: [null, null, null, null, null, null, null, 98, 106],
+    14: [null, null, null, null, null, null, null, 118, 127],
+    15: [null, null, null, null, null, null, null, 140, 150],
+};
 
 type PotentialRank = "none" | "rare" | "epic" | "unique" | "legendary";
 
@@ -553,6 +685,7 @@ type StarForceEstimate = {
     targetStars: number;
     meso: number;
     destructions: number;
+    statDelta: StarForceStatDelta;
 };
 
 type EquipmentPresetId = (typeof EQUIPMENT_PRESET_IDS)[number];
@@ -572,6 +705,15 @@ type EnhancementTotals = {
     destructionCount: number;
     estimatedMeso: number;
     estimatedDestructions: number;
+    targetStatDelta: StarForceStatDelta;
+};
+
+type StarForceStatDelta = {
+    primary: number;
+    secondary: number;
+    maxHp: number;
+    att: number;
+    matt: number;
 };
 
 type FlameScoreSettings = {
@@ -602,12 +744,23 @@ const DEFAULT_STAR_FORCE_ESTIMATE_SETTINGS: StarForceEstimateSettings = {
     isShiningStarForce: false,
     useSafeguard: false,
 };
+const EMPTY_STAR_FORCE_STAT_DELTA: StarForceStatDelta = {
+    primary: 0,
+    secondary: 0,
+    maxHp: 0,
+    att: 0,
+    matt: 0,
+};
+const createEmptyStarForceStatDelta = (): StarForceStatDelta => ({
+    ...EMPTY_STAR_FORCE_STAT_DELTA,
+});
 const EMPTY_STAR_FORCE_ESTIMATE: StarForceEstimate = {
     isActive: false,
     currentStars: 0,
     targetStars: 0,
     meso: 0,
     destructions: 0,
+    statDelta: EMPTY_STAR_FORCE_STAT_DELTA,
 };
 
 const clampNumber = (value: number, min: number, max: number) =>
@@ -678,6 +831,289 @@ const getSlotStarForceCap = (
     slot: Pick<EquipmentSlotState, "itemLevel" | "itemName" | "itemSetType">,
     item?: EquipmentCatalogItem
 ) => getStarForceCap(slot.itemLevel, isSuperiorEquipment(item, slot));
+
+const getNormalStarForceLevelBucket = (level: number, bucketCount: 5 | 6) => {
+    const normalizedLevel = Math.max(0, Math.trunc(Number(level) || 0));
+
+    if (bucketCount === 6 && normalizedLevel >= 250) {
+        return 5;
+    }
+
+    if (normalizedLevel >= 200) {
+        return 4;
+    }
+
+    if (normalizedLevel >= 160) {
+        return 3;
+    }
+
+    if (normalizedLevel >= 150) {
+        return 2;
+    }
+
+    if (normalizedLevel >= 138) {
+        return 1;
+    }
+
+    return 0;
+};
+
+const getSuperiorStarForceLevelBucket = (level: number) => {
+    const normalizedLevel = Math.max(0, Math.trunc(Number(level) || 0));
+
+    if (normalizedLevel >= 150) {
+        return 8;
+    }
+    if (normalizedLevel >= 138) {
+        return 7;
+    }
+    if (normalizedLevel >= 128) {
+        return 6;
+    }
+    if (normalizedLevel >= 118) {
+        return 5;
+    }
+    if (normalizedLevel >= 108) {
+        return 4;
+    }
+    if (normalizedLevel >= 98) {
+        return 3;
+    }
+    if (normalizedLevel >= 88) {
+        return 2;
+    }
+    if (normalizedLevel >= 78) {
+        return 1;
+    }
+
+    return 0;
+};
+
+const getBucketedStarForceValue = (
+    table: Record<number, readonly (number | null)[]>,
+    star: number,
+    bucketIndex: number
+) => {
+    const row = table[star];
+    if (!row) {
+        return 0;
+    }
+
+    return row[clampNumber(bucketIndex, 0, row.length - 1)] || 0;
+};
+
+const addStarForceStatDeltas = (
+    total: StarForceStatDelta,
+    next: StarForceStatDelta
+): StarForceStatDelta => ({
+    primary: total.primary + next.primary,
+    secondary: total.secondary + next.secondary,
+    maxHp: total.maxHp + next.maxHp,
+    att: total.att + next.att,
+    matt: total.matt + next.matt,
+});
+
+const subtractStarForceStatDeltas = (
+    target: StarForceStatDelta,
+    current: StarForceStatDelta
+): StarForceStatDelta => ({
+    primary: target.primary - current.primary,
+    secondary: target.secondary - current.secondary,
+    maxHp: target.maxHp - current.maxHp,
+    att: target.att - current.att,
+    matt: target.matt - current.matt,
+});
+
+const calculateWeaponStarForceAttackCumulative = (
+    baseAttack: number,
+    stars: number
+) => {
+    let currentAttack = Math.max(0, Math.trunc(Number(baseAttack) || 0));
+    let total = 0;
+
+    for (let star = 1; star <= Math.min(stars, 15); star += 1) {
+        const gain = Math.floor(currentAttack * 0.02 + 1);
+        total += gain;
+        currentAttack += gain;
+    }
+
+    return total;
+};
+
+const getWeaponStarForceCumulativeStats = (
+    item: EquipmentCatalogItem | undefined,
+    level: number,
+    stars: number
+) => {
+    const result = createEmptyStarForceStatDelta();
+    const star = clampNumber(Math.trunc(Number(stars) || 0), 0, 25);
+    const lowStar = Math.min(star, 15);
+    const bucket = getNormalStarForceLevelBucket(level, 5);
+    const classStat =
+        star <= 15
+            ? NORMAL_STAR_FORCE_CLASS_STAT_CUMULATIVE[star]
+            : getBucketedStarForceValue(
+                  WEAPON_STAR_FORCE_CLASS_CUMULATIVE,
+                  star,
+                  bucket
+              );
+    const fixedAttack =
+        star <= 15
+            ? 0
+            : getBucketedStarForceValue(
+                  WEAPON_STAR_FORCE_ATTACK_CUMULATIVE,
+                  star,
+                  bucket
+              );
+    const baseAtt = Number(item?.stats.att) || 0;
+    const baseMatt = Number(item?.stats.matt) || 0;
+
+    result.primary = classStat;
+    result.secondary = classStat;
+    result.maxHp = NORMAL_STAR_FORCE_HP_CUMULATIVE[lowStar];
+    result.att =
+        baseAtt > 0
+            ? calculateWeaponStarForceAttackCumulative(baseAtt, lowStar) +
+              fixedAttack
+            : 0;
+    result.matt =
+        baseMatt > 0
+            ? calculateWeaponStarForceAttackCumulative(baseMatt, lowStar) +
+              fixedAttack
+            : 0;
+
+    return result;
+};
+
+const getArmorStarForceCumulativeStats = (
+    kind: EquipKind | undefined,
+    level: number,
+    stars: number
+) => {
+    const result = createEmptyStarForceStatDelta();
+    const star = clampNumber(Math.trunc(Number(stars) || 0), 0, MAX_STAR_FORCE);
+    const lowStar = Math.min(star, 15);
+    const bucket = getNormalStarForceLevelBucket(level, 6);
+    const classStat =
+        star <= 15
+            ? NORMAL_STAR_FORCE_CLASS_STAT_CUMULATIVE[star]
+            : getBucketedStarForceValue(
+                  ARMOR_STAR_FORCE_CLASS_CUMULATIVE,
+                  star,
+                  bucket
+              );
+    const generalAttack =
+        star <= 15
+            ? 0
+            : getBucketedStarForceValue(
+                  ARMOR_STAR_FORCE_ATTACK_CUMULATIVE,
+                  star,
+                  bucket
+              );
+    const gloveAttack =
+        kind === "gloves" ? ARMOR_GLOVE_ATTACK_CUMULATIVE[lowStar] : 0;
+
+    result.primary = classStat;
+    result.secondary = classStat;
+    result.maxHp =
+        kind && STAR_FORCE_NO_HP_KINDS.has(kind)
+            ? 0
+            : NORMAL_STAR_FORCE_HP_CUMULATIVE[lowStar];
+    result.att = generalAttack + gloveAttack;
+    result.matt = generalAttack + gloveAttack;
+
+    return result;
+};
+
+const getBadgeStarForceCumulativeStats = (level: number, stars: number) => {
+    const result = createEmptyStarForceStatDelta();
+    const star = clampNumber(Math.trunc(Number(stars) || 0), 0, 22);
+    const bucket = getNormalStarForceLevelBucket(level, 6);
+    const allStats =
+        star <= 15
+            ? NORMAL_STAR_FORCE_CLASS_STAT_CUMULATIVE[star]
+            : getBucketedStarForceValue(
+                  BADGE_STAR_FORCE_ALL_STAT_CUMULATIVE,
+                  star,
+                  bucket
+              );
+
+    result.primary = allStats;
+    result.secondary = allStats;
+
+    return result;
+};
+
+const getSuperiorStarForceCumulativeStats = (
+    level: number,
+    stars: number
+) => {
+    const result = createEmptyStarForceStatDelta();
+    const star = clampNumber(Math.trunc(Number(stars) || 0), 0, 15);
+    const bucket = getSuperiorStarForceLevelBucket(level);
+    const allStats = getBucketedStarForceValue(
+        SUPERIOR_STAR_FORCE_ALL_STAT_CUMULATIVE,
+        star,
+        bucket
+    );
+    const attack = getBucketedStarForceValue(
+        SUPERIOR_STAR_FORCE_ATTACK_CUMULATIVE,
+        star,
+        bucket
+    );
+
+    result.primary = allStats;
+    result.secondary = allStats;
+    result.att = attack;
+    result.matt = attack;
+
+    return result;
+};
+
+const getStarForceCumulativeStats = (
+    slot: EquipmentSlotState,
+    item: EquipmentCatalogItem | undefined,
+    stars: number
+) => {
+    const starForceCap = getSlotStarForceCap(slot, item);
+    const star = clampNumber(stars, 0, starForceCap);
+    const kind = item?.equipType;
+    const level = item?.level || slot.itemLevel;
+
+    if (star <= 0) {
+        return createEmptyStarForceStatDelta();
+    }
+
+    if (isSuperiorEquipment(item, slot)) {
+        return getSuperiorStarForceCumulativeStats(level, star);
+    }
+
+    if (kind === "weapon") {
+        return getWeaponStarForceCumulativeStats(item, level, star);
+    }
+
+    if (kind === "badge") {
+        return getBadgeStarForceCumulativeStats(level, star);
+    }
+
+    return getArmorStarForceCumulativeStats(kind, level, star);
+};
+
+const calculateStarForceStatDelta = (
+    slot: EquipmentSlotState,
+    item: EquipmentCatalogItem | undefined,
+    currentStars: number,
+    targetStars: number
+) => {
+    if (targetStars <= currentStars) {
+        return createEmptyStarForceStatDelta();
+    }
+
+    return subtractStarForceStatDeltas(
+        getStarForceCumulativeStats(slot, item, targetStars),
+        getStarForceCumulativeStats(slot, item, currentStars)
+    );
+};
 
 const getPotentialLevelBucket = (level: number) => {
     if (level >= 160) {
@@ -1325,6 +1761,7 @@ const calculateSlotStarForceEstimate = (
             ...EMPTY_STAR_FORCE_ESTIMATE,
             currentStars,
             targetStars,
+            statDelta: createEmptyStarForceStatDelta(),
         };
     }
 
@@ -1352,6 +1789,12 @@ const calculateSlotStarForceEstimate = (
         targetStars,
         meso: Math.round(meso),
         destructions,
+        statDelta: calculateStarForceStatDelta(
+            slot,
+            item,
+            currentStars,
+            targetStars
+        ),
     };
 };
 
@@ -1376,6 +1819,10 @@ const calculateEnhancementTotals = (
                 estimatedMeso: totals.estimatedMeso + estimate.meso,
                 estimatedDestructions:
                     totals.estimatedDestructions + estimate.destructions,
+                targetStatDelta: addStarForceStatDeltas(
+                    totals.targetStatDelta,
+                    estimate.statDelta
+                ),
             };
         },
         {
@@ -1383,6 +1830,7 @@ const calculateEnhancementTotals = (
             destructionCount: 0,
             estimatedMeso: 0,
             estimatedDestructions: 0,
+            targetStatDelta: createEmptyStarForceStatDelta(),
         }
     );
 
@@ -1848,6 +2296,22 @@ const formatSetEffectStat = (stat: SetEffectStat) => {
     const suffix = PERCENT_SET_STATS.has(stat.statId) ? "%" : "";
     return `${label} +${formatInteger(stat.val)}${suffix}`;
 };
+
+const getStarForceStatDeltaEntries = (
+    statDelta: StarForceStatDelta,
+    settings: FlameScoreSettings
+) =>
+    [
+        { key: "primary", label: settings.primaryStat, value: statDelta.primary },
+        {
+            key: "secondary",
+            label: settings.secondaryStat,
+            value: statDelta.secondary,
+        },
+        { key: "maxHp", label: "HP", value: statDelta.maxHp },
+        { key: "att", label: "ATT", value: statDelta.att },
+        { key: "matt", label: "MATT", value: statDelta.matt },
+    ].filter((entry) => entry.value !== 0);
 
 const aggregateSetEffectStats = (tiers: SetEffectTier[]) => {
     const totals = new Map<string, number>();
@@ -2899,6 +3363,7 @@ function EquipmentSetup() {
             <PresetTabsPanel
                 activePresetId={activePresetId}
                 enhancementTotals={enhancementTotals}
+                flameScoreSettings={flameScoreSettings}
                 starForceEstimateSettings={starForceEstimateSettings}
                 onChange={setActivePresetId}
                 onEstimateSettingsChange={updateStarForceEstimateSettings}
@@ -2959,12 +3424,14 @@ function EquipmentSetup() {
 function PresetTabsPanel({
     activePresetId,
     enhancementTotals,
+    flameScoreSettings,
     starForceEstimateSettings,
     onChange,
     onEstimateSettingsChange,
 }: Readonly<{
     activePresetId: EquipmentPresetId;
     enhancementTotals: EnhancementTotals;
+    flameScoreSettings: FlameScoreSettings;
     starForceEstimateSettings: StarForceEstimateSettings;
     onChange: (presetId: EquipmentPresetId) => void;
     onEstimateSettingsChange: (
@@ -3052,6 +3519,17 @@ function PresetTabsPanel({
                         )}
                     </strong>
                 </span>
+            </div>
+            <div className="flex basis-full flex-wrap items-center justify-between gap-2 border-t border-slate-700/70 pt-2">
+                <span className="text-[10px] font-semibold uppercase text-slate-500">
+                    Target stat gains
+                </span>
+                <StarForceStatDeltaChips
+                    statDelta={enhancementTotals.targetStatDelta}
+                    settings={flameScoreSettings}
+                    emptyLabel="No target stat gains"
+                    className="justify-end"
+                />
             </div>
         </div>
     );
@@ -3509,6 +3987,16 @@ function SelectedEquipmentPanel({
                             starForceEstimate.destructions
                         )}
                         isActive={starForceEstimate.isActive}
+                    />
+                </div>
+                <div className="mt-3 rounded-md border border-slate-700 bg-slate-950 px-3 py-2">
+                    <div className="text-[10px] font-semibold uppercase leading-none text-slate-500">
+                        Target stat gains
+                    </div>
+                    <StarForceStatDeltaChips
+                        statDelta={starForceEstimate.statDelta}
+                        settings={flameScoreSettings}
+                        className="mt-2"
                     />
                 </div>
                 <div className="mt-2 flex flex-wrap justify-end gap-2 text-[11px] text-slate-400">
@@ -4132,6 +4620,45 @@ function StarForceEstimateMetric({
             >
                 {value}
             </div>
+        </div>
+    );
+}
+
+function StarForceStatDeltaChips({
+    statDelta,
+    settings,
+    emptyLabel = "-",
+    className = "",
+}: Readonly<{
+    statDelta: StarForceStatDelta;
+    settings: FlameScoreSettings;
+    emptyLabel?: string;
+    className?: string;
+}>) {
+    const entries = getStarForceStatDeltaEntries(statDelta, settings);
+
+    if (entries.length === 0) {
+        return (
+            <span className={`text-xs text-slate-500 ${className}`}>
+                {emptyLabel}
+            </span>
+        );
+    }
+
+    return (
+        <div className={`flex flex-wrap gap-1.5 ${className}`}>
+            {entries.map((entry) => (
+                <span
+                    className="rounded-sm border border-emerald-500/35 bg-emerald-500/10 px-2 py-1 text-xs font-semibold text-emerald-100"
+                    key={entry.key}
+                >
+                    {entry.label}{" "}
+                    <strong className="tabular-nums text-white">
+                        {entry.value > 0 ? "+" : ""}
+                        {formatInteger(entry.value)}
+                    </strong>
+                </span>
+            ))}
         </div>
     );
 }
