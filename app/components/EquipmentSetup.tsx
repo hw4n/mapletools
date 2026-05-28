@@ -649,6 +649,8 @@ const POTENTIAL_RANK_ORDER: Exclude<PotentialRank, "none">[] = [
 const FLAME_LINE_GRID_CLASS =
     "grid grid-cols-[minmax(128px,1fr)_minmax(238px,auto)_96px] items-center gap-2";
 const FLAME_TIERS = [1, 2, 3, 4, 5, 6, 7] as const;
+const DEFAULT_FLAME_TIER_CAP = 7;
+const REGULAR_FLAME_TIER_CAP = 5;
 
 type PotentialBlock = {
     rank: PotentialRank;
@@ -794,6 +796,57 @@ const formatExpectedCount = (value: number) => {
 
 const formatScore = (value: number) =>
     Number.isInteger(value) ? formatInteger(value) : value.toFixed(1);
+
+const isSweetwaterOrGolluxItem = (
+    item?: EquipmentCatalogItem,
+    slot?: Pick<EquipmentSlotState, "itemName" | "itemSetType">
+) => {
+    const searchableText = [
+        item?.id,
+        item?.baseId,
+        item?.name,
+        item?.setType,
+        slot?.itemName,
+        slot?.itemSetType,
+    ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+    return (
+        searchableText.includes("sweetwater") ||
+        searchableText.includes("gollux")
+    );
+};
+
+const getFlameTierCap = (
+    item?: EquipmentCatalogItem,
+    slot?: Pick<EquipmentSlotState, "itemName" | "itemSetType">
+) =>
+    isSweetwaterOrGolluxItem(item, slot)
+        ? REGULAR_FLAME_TIER_CAP
+        : DEFAULT_FLAME_TIER_CAP;
+
+const clampFlameTier = (
+    tier: number,
+    item?: EquipmentCatalogItem,
+    slot?: Pick<EquipmentSlotState, "itemName" | "itemSetType">
+) =>
+    clampNumber(
+        Math.trunc(Number(tier) || 0),
+        0,
+        getFlameTierCap(item, slot)
+    );
+
+const clampFlameLinesToTierCap = (
+    flames: FlameLine[],
+    item?: EquipmentCatalogItem,
+    slot?: Pick<EquipmentSlotState, "itemName" | "itemSetType">
+) =>
+    flames.map((line) => ({
+        ...line,
+        tier: line.stat === "None" ? 0 : clampFlameTier(line.tier, item, slot),
+    }));
 
 const isSuperiorEquipment = (
     item?: EquipmentCatalogItem,
@@ -2127,7 +2180,7 @@ const calculateFlameLineValue = (
     slot: EquipmentSlotState,
     catalogItem?: EquipmentCatalogItem
 ) => {
-    const tier = clampNumber(Math.trunc(Number(line.tier) || 0), 0, 7);
+    const tier = clampFlameTier(line.tier, catalogItem, slot);
 
     if (tier === 0 || line.stat === "None") {
         return 0;
@@ -3348,6 +3401,10 @@ function EquipmentSetup() {
             itemSetType: item.setType,
             stars: clampNumber(selectedSlot.stars, 0, starForceCap),
             targetStars: clampNumber(selectedSlot.targetStars, 0, starForceCap),
+            flames: clampFlameLinesToTierCap(selectedSlot.flames, item, {
+                itemName: item.name,
+                itemSetType: item.setType,
+            }),
         });
     };
 
@@ -3379,9 +3436,25 @@ function EquipmentSetup() {
             return;
         }
 
-        const flames = selectedSlot.flames.map((line, lineIndex) =>
-            lineIndex === index ? { ...line, ...patch } : line
-        );
+        const flames = selectedSlot.flames.map((line, lineIndex) => {
+            if (lineIndex !== index) {
+                return line;
+            }
+
+            const nextLine = { ...line, ...patch };
+
+            return {
+                ...nextLine,
+                tier:
+                    nextLine.stat === "None"
+                        ? 0
+                        : clampFlameTier(
+                              nextLine.tier,
+                              selectedCatalogItem,
+                              selectedSlot
+                          ),
+            };
+        });
 
         updateSelectedSlot({ flames });
     };
@@ -3935,6 +4008,7 @@ function SelectedEquipmentPanel({
         0,
         starForceCap
     );
+    const flameTierCap = getFlameTierCap(selectedCatalogItem, selectedSlot);
 
     return (
         <div className="min-w-0 rounded-md border border-slate-600 bg-slate-800/60 p-3">
@@ -4190,7 +4264,11 @@ function SelectedEquipmentPanel({
                                                     event.target.value ===
                                                     "None"
                                                         ? 0
-                                                        : line.tier,
+                                                        : clampNumber(
+                                                              line.tier,
+                                                              0,
+                                                              flameTierCap
+                                                          ),
                                             })
                                         }
                                     >
@@ -4201,7 +4279,12 @@ function SelectedEquipmentPanel({
                                         ))}
                                     </select>
                                     <FlameTierButtonGroup
-                                        value={line.tier}
+                                        value={clampNumber(
+                                            line.tier,
+                                            0,
+                                            flameTierCap
+                                        )}
+                                        maxTier={flameTierCap}
                                         onChange={(tier) =>
                                             onFlameLineChange(index, { tier })
                                         }
@@ -4323,16 +4406,20 @@ function JobTypeSelector({
 
 function FlameTierButtonGroup({
     value,
+    maxTier,
     onChange,
     ariaLabel,
 }: Readonly<{
     value: number;
+    maxTier: number;
     onChange: (tier: number) => void;
     ariaLabel: string;
 }>) {
+    const availableTiers = FLAME_TIERS.filter((tier) => tier <= maxTier);
+
     return (
         <ButtonGroup className="!w-full min-w-0" aria-label={ariaLabel}>
-            {FLAME_TIERS.map((tier) => {
+            {availableTiers.map((tier) => {
                 const isSelected = value === tier;
 
                 return (
