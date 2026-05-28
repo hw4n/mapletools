@@ -273,6 +273,8 @@ const DEFAULT_FLAME_SCORE_SETTINGS: FlameScoreSettings = {
 };
 
 const BLACK_FLAME_ICON = "/image/equipment/flames/black-flame.png";
+const FLAME_SCORE_COMMON_THRESHOLD = 60;
+const FLAME_SCORE_COMPLETE_THRESHOLD = 180;
 
 const EQUIPMENT_CATALOG = equipmentItems as unknown as EquipmentCatalogItem[];
 const EQUIPMENT_BY_KIND = EQUIPMENT_CATALOG.reduce(
@@ -2235,6 +2237,84 @@ const calculateFlameScore = (
         return total;
     }, 0);
 
+const hslToRgb = (hue: number, saturation: number, lightness: number) => {
+    const normalizedSaturation = saturation / 100;
+    const normalizedLightness = lightness / 100;
+    const chroma =
+        (1 - Math.abs(2 * normalizedLightness - 1)) * normalizedSaturation;
+    const huePrime = hue / 60;
+    const x = chroma * (1 - Math.abs((huePrime % 2) - 1));
+    const [red, green, blue] =
+        huePrime < 1
+            ? [chroma, x, 0]
+            : huePrime < 2
+              ? [x, chroma, 0]
+              : huePrime < 3
+                ? [0, chroma, x]
+                : huePrime < 4
+                  ? [0, x, chroma]
+                  : huePrime < 5
+                    ? [x, 0, chroma]
+                    : [chroma, 0, x];
+    const match = normalizedLightness - chroma / 2;
+
+    return [red, green, blue].map((channel) =>
+        Math.round((channel + match) * 255)
+    );
+};
+
+const getRelativeLuminance = ([red, green, blue]: number[]) => {
+    const [r, g, b] = [red, green, blue].map((channel) => {
+        const normalizedChannel = channel / 255;
+        return normalizedChannel <= 0.03928
+            ? normalizedChannel / 12.92
+            : Math.pow((normalizedChannel + 0.055) / 1.055, 2.4);
+    });
+
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+
+const getContrastRatio = (firstLuminance: number, secondLuminance: number) => {
+    const lighter = Math.max(firstLuminance, secondLuminance);
+    const darker = Math.min(firstLuminance, secondLuminance);
+
+    return (lighter + 0.05) / (darker + 0.05);
+};
+
+const getFlameScoreIndicatorTone = (score: number) => {
+    const progress = clampNumber(
+        (score - FLAME_SCORE_COMMON_THRESHOLD) /
+            (FLAME_SCORE_COMPLETE_THRESHOLD - FLAME_SCORE_COMMON_THRESHOLD),
+        0,
+        1
+    );
+    const easedProgress = Math.pow(progress, 0.85);
+    const hue = Math.round(2 + easedProgress * 132);
+    const saturation = 72;
+    const lightness = Math.round(34 + easedProgress * 4);
+    const backgroundLuminance = getRelativeLuminance(
+        hslToRgb(hue, saturation, lightness)
+    );
+    const whiteContrast = getContrastRatio(backgroundLuminance, 1);
+    const darkContrast = getContrastRatio(backgroundLuminance, 0);
+    const useLightText = whiteContrast >= darkContrast;
+    const textColor = useLightText ? "#f8fafc" : "#020617";
+
+    return {
+        container: {
+            backgroundColor: `hsl(${hue} ${saturation}% ${lightness}%)`,
+            borderColor: `hsl(${hue} ${Math.max(
+                48,
+                saturation - 10
+            )}% ${Math.min(58, lightness + 14)}%)`,
+            color: textColor,
+            textShadow: useLightText
+                ? "0 1px 1px rgba(2, 6, 23, 0.7)"
+                : "0 1px 0 rgba(255, 255, 255, 0.18)",
+        } satisfies React.CSSProperties,
+    };
+};
+
 const applyJobDefaultsToFlameSettings = (
     settings: FlameScoreSettings,
     jobType: JobType
@@ -3724,6 +3804,8 @@ function EquipmentGridSlot({
         flameScoreSettings,
         catalogItem
     );
+    const flameScoreTone =
+        flameScore > 0 ? getFlameScoreIndicatorTone(flameScore) : undefined;
 
     return (
         <button
@@ -3785,7 +3867,11 @@ function EquipmentGridSlot({
                 </span>
             ) : null}
             {flameScore > 0 ? (
-                <span className="absolute bottom-[3cqw] left-[3cqw] flex items-center gap-[0.15em] rounded-sm bg-black/80 px-[0.35em] text-[clamp(10px,15cqw,17px)] font-bold leading-[1.25] text-slate-100">
+                <span
+                    className="absolute bottom-[3cqw] left-[3cqw] flex items-center gap-[0.15em] rounded-sm border px-[0.35em] text-[clamp(10px,15cqw,17px)] font-bold leading-[1.25]"
+                    style={flameScoreTone?.container}
+                    title="Flame score"
+                >
                     <img
                         src={BLACK_FLAME_ICON}
                         alt=""
