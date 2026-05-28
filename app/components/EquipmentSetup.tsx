@@ -201,6 +201,14 @@ type CountedSetEffect = {
     nextTier?: SetEffectTier;
 };
 
+type StarForceRates = {
+    success: number;
+    fail: number;
+    destroy: number;
+};
+
+type StarForceFailStreak = 0 | 1 | 2;
+
 const EQUIP_KINDS: EquipKind[] = [
     "ring",
     "pendant",
@@ -361,6 +369,55 @@ const SET_EFFECT_EQUIP_TYPES = EQUIPMENT_CATALOG.reduce(
 const MAX_STAR_FORCE = 30;
 const STAR_GROUP_SIZE = 5;
 const STAR_ROW_SIZE = 15;
+const CHANCE_TIME_FAIL_STREAK: StarForceFailStreak = 2;
+const SHINING_STAR_FORCE_STARS = new Set([5, 10, 15]);
+const STAR_FORCE_FAIL_STREAKS: StarForceFailStreak[] = [0, 1, 2];
+const STAR_FORCE_RATE_TABLE: Record<number, StarForceRates> = {
+    0: { success: 0.95, fail: 0.05, destroy: 0 },
+    1: { success: 0.9, fail: 0.1, destroy: 0 },
+    2: { success: 0.85, fail: 0.15, destroy: 0 },
+    3: { success: 0.85, fail: 0.15, destroy: 0 },
+    4: { success: 0.8, fail: 0.2, destroy: 0 },
+    5: { success: 0.75, fail: 0.25, destroy: 0 },
+    6: { success: 0.7, fail: 0.3, destroy: 0 },
+    7: { success: 0.65, fail: 0.35, destroy: 0 },
+    8: { success: 0.6, fail: 0.4, destroy: 0 },
+    9: { success: 0.55, fail: 0.45, destroy: 0 },
+    10: { success: 0.5, fail: 0.5, destroy: 0 },
+    11: { success: 0.45, fail: 0.55, destroy: 0 },
+    12: { success: 0.4, fail: 0.6, destroy: 0 },
+    13: { success: 0.35, fail: 0.65, destroy: 0 },
+    14: { success: 0.3, fail: 0.7, destroy: 0 },
+    15: { success: 0.3, fail: 0.679, destroy: 0.021 },
+    16: { success: 0.3, fail: 0.679, destroy: 0.021 },
+    17: { success: 0.15, fail: 0.782, destroy: 0.068 },
+    18: { success: 0.15, fail: 0.782, destroy: 0.068 },
+    19: { success: 0.15, fail: 0.765, destroy: 0.085 },
+    20: { success: 0.3, fail: 0.595, destroy: 0.105 },
+    21: { success: 0.15, fail: 0.7225, destroy: 0.1275 },
+    22: { success: 0.15, fail: 0.68, destroy: 0.17 },
+    23: { success: 0.1, fail: 0.72, destroy: 0.18 },
+    24: { success: 0.1, fail: 0.72, destroy: 0.18 },
+    25: { success: 0.1, fail: 0.72, destroy: 0.18 },
+    26: { success: 0.07, fail: 0.744, destroy: 0.186 },
+    27: { success: 0.05, fail: 0.76, destroy: 0.19 },
+    28: { success: 0.03, fail: 0.776, destroy: 0.194 },
+    29: { success: 0.01, fail: 0.792, destroy: 0.198 },
+};
+const GMS_STAR_FORCE_COST_DIVISORS: Record<number, number> = {
+    10: 400,
+    11: 220,
+    12: 150,
+    13: 110,
+    14: 75,
+    15: 200,
+    16: 200,
+    17: 150,
+    18: 70,
+    19: 45,
+    20: 200,
+    21: 125,
+};
 const MESO_COUNTER_STEPS = [
     { label: "100B", value: 100_000_000_000 },
     { label: "10B", value: 10_000_000_000 },
@@ -477,6 +534,7 @@ type EquipmentSlotState = {
     itemLevel: number;
     itemSetType: string;
     stars: number;
+    targetStars: number;
     mesoSpent: number;
     destructionCount: number;
     potential: PotentialBlock;
@@ -484,11 +542,25 @@ type EquipmentSlotState = {
     flames: FlameLine[];
 };
 
+type StarForceEstimateSettings = {
+    isShiningStarForce: boolean;
+    useSafeguard: boolean;
+};
+
+type StarForceEstimate = {
+    isActive: boolean;
+    currentStars: number;
+    targetStars: number;
+    meso: number;
+    destructions: number;
+};
+
 type EquipmentPresetId = (typeof EQUIPMENT_PRESET_IDS)[number];
 
 type EquipmentPresetState = {
     selectedJobType: JobType;
     flameScoreSettings: FlameScoreSettings;
+    starForceEstimateSettings: StarForceEstimateSettings;
     selectedSlotId: EquipSlotId | null;
     equipmentState: Record<EquipSlotId, EquipmentSlotState>;
 };
@@ -498,6 +570,8 @@ type EquipmentPresetsState = Record<EquipmentPresetId, EquipmentPresetState>;
 type EnhancementTotals = {
     mesoSpent: number;
     destructionCount: number;
+    estimatedMeso: number;
+    estimatedDestructions: number;
 };
 
 type FlameScoreSettings = {
@@ -515,6 +589,7 @@ type EquipmentSetupClipboardPayload = {
     jobType: JobType;
     selectedSlotId: EquipSlotId | null;
     flameScoreSettings: FlameScoreSettings;
+    starForceEstimateSettings: StarForceEstimateSettings;
     equipmentState: Record<EquipSlotId, EquipmentSlotState>;
 };
 
@@ -523,6 +598,17 @@ const EQUIPMENT_SETUP_CLIPBOARD_VERSION = 1;
 const EQUIPMENT_SETUP_PRESETS_STORAGE_KEY = "equipmentSetupPresets";
 const EQUIPMENT_SETUP_ACTIVE_PRESET_STORAGE_KEY = "equipmentSetupActivePreset";
 const LEGACY_EQUIPMENT_SETUP_STORAGE_KEY = "equipmentSetupTracker";
+const DEFAULT_STAR_FORCE_ESTIMATE_SETTINGS: StarForceEstimateSettings = {
+    isShiningStarForce: false,
+    useSafeguard: false,
+};
+const EMPTY_STAR_FORCE_ESTIMATE: StarForceEstimate = {
+    isActive: false,
+    currentStars: 0,
+    targetStars: 0,
+    meso: 0,
+    destructions: 0,
+};
 
 const clampNumber = (value: number, min: number, max: number) =>
     Math.min(max, Math.max(min, value));
@@ -534,6 +620,22 @@ const parseFormattedCounterValue = (value: string) =>
     normalizeCounterValue(value.replace(/[^\d]/g, ""));
 
 const formatInteger = (value: number) => NUMBER_FORMATTER.format(value);
+
+const formatExpectedCount = (value: number) => {
+    if (value <= 0) {
+        return "0";
+    }
+
+    if (value >= 100) {
+        return formatInteger(Math.round(value));
+    }
+
+    if (value >= 10) {
+        return value.toFixed(1);
+    }
+
+    return value.toFixed(2);
+};
 
 const formatScore = (value: number) =>
     Number.isInteger(value) ? formatInteger(value) : value.toFixed(1);
@@ -902,18 +1004,386 @@ const calculateSlotPotentialStats = (
         kind
     );
 
+const roundMesoCost = (value: number) =>
+    Math.max(0, Math.round(value / 100) * 100);
+
+const getBaseStarForceRates = (star: number): StarForceRates => {
+    const normalizedStar = clampNumber(
+        Math.trunc(Number(star) || 0),
+        0,
+        MAX_STAR_FORCE - 1
+    );
+
+    return STAR_FORCE_RATE_TABLE[normalizedStar] || STAR_FORCE_RATE_TABLE[29];
+};
+
+const isShiningGuaranteedStar = (
+    star: number,
+    settings: StarForceEstimateSettings,
+    isSuperior: boolean
+) =>
+    settings.isShiningStarForce &&
+    !isSuperior &&
+    SHINING_STAR_FORCE_STARS.has(star);
+
+const isSafeguardAvailable = (star: number, isSuperior: boolean) =>
+    !isSuperior && star >= 15 && star <= 17;
+
+const isSafeguardActiveForAttempt = (
+    star: number,
+    settings: StarForceEstimateSettings,
+    isSuperior: boolean
+) =>
+    settings.useSafeguard &&
+    isSafeguardAvailable(star, isSuperior) &&
+    !isShiningGuaranteedStar(star, settings, isSuperior) &&
+    getBaseStarForceRates(star).destroy > 0;
+
+const getStarForceRates = (
+    star: number,
+    settings: StarForceEstimateSettings,
+    isSuperior: boolean
+): StarForceRates => {
+    if (isShiningGuaranteedStar(star, settings, isSuperior)) {
+        return { success: 1, fail: 0, destroy: 0 };
+    }
+
+    const rates = getBaseStarForceRates(star);
+
+    if (isSafeguardActiveForAttempt(star, settings, isSuperior)) {
+        return {
+            success: rates.success,
+            fail: rates.fail + rates.destroy,
+            destroy: 0,
+        };
+    }
+
+    return rates;
+};
+
+const getFailureStar = (star: number, isSuperior: boolean) => {
+    if (!isSuperior) {
+        return star;
+    }
+
+    return clampNumber(star - 1, 0, MAX_STAR_FORCE);
+};
+
+const getDestructionRecoveryStar = (star: number, isSuperior: boolean) => {
+    if (isSuperior) {
+        return 0;
+    }
+
+    if (star <= 19) {
+        return 12;
+    }
+
+    if (star === 20) {
+        return 15;
+    }
+
+    if (star <= 22) {
+        return 17;
+    }
+
+    if (star <= 25) {
+        return 19;
+    }
+
+    return 20;
+};
+
+const getBaseStarForceAttemptCost = (
+    level: number,
+    star: number,
+    isSuperior: boolean
+) => {
+    const itemLevel = Math.max(0, Math.trunc(Number(level) || 0));
+
+    if (itemLevel <= 0) {
+        return 0;
+    }
+
+    if (isSuperior) {
+        return roundMesoCost(1000 + Math.pow(itemLevel, 3.56));
+    }
+
+    const levelPower = Math.pow(itemLevel, 3);
+    const nextStar = star + 1;
+    const costDivisor =
+        star < 10 ? 25 : GMS_STAR_FORCE_COST_DIVISORS[star] || 200;
+    const starPower = star < 10 ? nextStar : Math.pow(nextStar, 2.7);
+    const baseCost = 1000 + (levelPower * starPower) / costDivisor;
+
+    return roundMesoCost(baseCost);
+};
+
+const getStarForceAttemptCost = (
+    level: number,
+    star: number,
+    settings: StarForceEstimateSettings,
+    isSuperior: boolean,
+    isGuaranteedAttempt = false
+) => {
+    const baseCost = getBaseStarForceAttemptCost(level, star, isSuperior);
+    let cost =
+        settings.isShiningStarForce && !isSuperior ? baseCost * 0.7 : baseCost;
+
+    if (
+        !isGuaranteedAttempt &&
+        isSafeguardActiveForAttempt(star, settings, isSuperior)
+    ) {
+        cost += baseCost * 2;
+    }
+
+    return roundMesoCost(cost);
+};
+
+const getNextFailStreak = (
+    failStreak: StarForceFailStreak
+): StarForceFailStreak => (failStreak === 0 ? 1 : 2);
+
+const getStarForceTransitions = (
+    star: number,
+    failStreak: StarForceFailStreak,
+    slot: Pick<EquipmentSlotState, "itemLevel">,
+    settings: StarForceEstimateSettings,
+    isSuperior: boolean
+) => {
+    if (isSuperior && failStreak === CHANCE_TIME_FAIL_STREAK) {
+        return {
+            cost: getStarForceAttemptCost(
+                slot.itemLevel,
+                star,
+                settings,
+                isSuperior,
+                true
+            ),
+            destructionChance: 0,
+            transitions: [
+                {
+                    probability: 1,
+                    star: star + 1,
+                    failStreak: 0 as StarForceFailStreak,
+                },
+            ],
+        };
+    }
+
+    const rates = getStarForceRates(star, settings, isSuperior);
+    const failureStar = getFailureStar(star, isSuperior);
+    const nextFailStreak =
+        isSuperior && failureStar < star ? getNextFailStreak(failStreak) : 0;
+
+    return {
+        cost: getStarForceAttemptCost(
+            slot.itemLevel,
+            star,
+            settings,
+            isSuperior
+        ),
+        destructionChance: rates.destroy,
+        transitions: [
+            {
+                probability: rates.success,
+                star: star + 1,
+                failStreak: 0 as StarForceFailStreak,
+            },
+            {
+                probability: rates.fail,
+                star: failureStar,
+                failStreak: nextFailStreak,
+            },
+            {
+                probability: rates.destroy,
+                star: getDestructionRecoveryStar(star, isSuperior),
+                failStreak: 0 as StarForceFailStreak,
+            },
+        ],
+    };
+};
+
+const solveLinearSystem = (augmentedMatrix: number[][]) => {
+    const size = augmentedMatrix.length;
+
+    for (let column = 0; column < size; column += 1) {
+        let pivotRow = column;
+        for (let row = column + 1; row < size; row += 1) {
+            if (
+                Math.abs(augmentedMatrix[row][column]) >
+                Math.abs(augmentedMatrix[pivotRow][column])
+            ) {
+                pivotRow = row;
+            }
+        }
+
+        const pivot = augmentedMatrix[pivotRow][column];
+        if (Math.abs(pivot) < 1e-12) {
+            return undefined;
+        }
+
+        if (pivotRow !== column) {
+            [augmentedMatrix[column], augmentedMatrix[pivotRow]] = [
+                augmentedMatrix[pivotRow],
+                augmentedMatrix[column],
+            ];
+        }
+
+        for (let index = column; index <= size; index += 1) {
+            augmentedMatrix[column][index] /= pivot;
+        }
+
+        for (let row = 0; row < size; row += 1) {
+            if (row === column) {
+                continue;
+            }
+
+            const factor = augmentedMatrix[row][column];
+            if (factor === 0) {
+                continue;
+            }
+
+            for (let index = column; index <= size; index += 1) {
+                augmentedMatrix[row][index] -= factor * augmentedMatrix[column][index];
+            }
+        }
+    }
+
+    return augmentedMatrix.map((row) => row[size]);
+};
+
+const solveExpectedStarForceValue = (
+    slot: Pick<EquipmentSlotState, "itemLevel">,
+    currentStars: number,
+    targetStars: number,
+    settings: StarForceEstimateSettings,
+    isSuperior: boolean,
+    value: "meso" | "destructions"
+) => {
+    if (targetStars <= currentStars) {
+        return 0;
+    }
+
+    const stateWidth = STAR_FORCE_FAIL_STREAKS.length;
+    const stateCount = targetStars * stateWidth;
+    const stateIndex = (star: number, failStreak: StarForceFailStreak) =>
+        star * stateWidth + failStreak;
+    const matrix = Array.from({ length: stateCount }, () =>
+        Array.from({ length: stateCount + 1 }, () => 0)
+    );
+
+    for (let star = 0; star < targetStars; star += 1) {
+        STAR_FORCE_FAIL_STREAKS.forEach((failStreak) => {
+            const rowIndex = stateIndex(star, failStreak);
+            const row = matrix[rowIndex];
+            const { cost, destructionChance, transitions } =
+                getStarForceTransitions(
+                    star,
+                    failStreak,
+                    slot,
+                    settings,
+                    isSuperior
+                );
+
+            row[rowIndex] = 1;
+            row[stateCount] = value === "meso" ? cost : destructionChance;
+
+            transitions.forEach((transition) => {
+                if (
+                    transition.probability <= 0 ||
+                    transition.star >= targetStars
+                ) {
+                    return;
+                }
+
+                row[stateIndex(transition.star, transition.failStreak)] -=
+                    transition.probability;
+            });
+        });
+    }
+
+    const solution = solveLinearSystem(matrix);
+
+    if (!solution) {
+        return 0;
+    }
+
+    return Math.max(0, solution[stateIndex(currentStars, 0)] || 0);
+};
+
+const calculateSlotStarForceEstimate = (
+    slot: EquipmentSlotState,
+    item: EquipmentCatalogItem | undefined,
+    settings: StarForceEstimateSettings
+): StarForceEstimate => {
+    const starForceCap = getSlotStarForceCap(slot, item);
+    const currentStars = clampNumber(slot.stars, 0, starForceCap);
+    const targetStars = clampNumber(slot.targetStars, 0, starForceCap);
+
+    if (targetStars <= currentStars) {
+        return {
+            ...EMPTY_STAR_FORCE_ESTIMATE,
+            currentStars,
+            targetStars,
+        };
+    }
+
+    const isSuperior = isSuperiorEquipment(item, slot);
+    const meso = solveExpectedStarForceValue(
+        slot,
+        currentStars,
+        targetStars,
+        settings,
+        isSuperior,
+        "meso"
+    );
+    const destructions = solveExpectedStarForceValue(
+        slot,
+        currentStars,
+        targetStars,
+        settings,
+        isSuperior,
+        "destructions"
+    );
+
+    return {
+        isActive: true,
+        currentStars,
+        targetStars,
+        meso: Math.round(meso),
+        destructions,
+    };
+};
+
 const calculateEnhancementTotals = (
-    equipmentState: Record<EquipSlotId, EquipmentSlotState>
+    equipmentState: Record<EquipSlotId, EquipmentSlotState>,
+    selectedJobType: JobType,
+    starForceEstimateSettings: StarForceEstimateSettings
 ): EnhancementTotals =>
     EQUIP_SLOT_IDS.reduce(
-        (totals, slotId) => ({
-            mesoSpent:
-                totals.mesoSpent + equipmentState[slotId].mesoSpent,
-            destructionCount:
-                totals.destructionCount +
-                equipmentState[slotId].destructionCount,
-        }),
-        { mesoSpent: 0, destructionCount: 0 }
+        (totals, slotId) => {
+            const slot = equipmentState[slotId];
+            const estimate = calculateSlotStarForceEstimate(
+                slot,
+                getCatalogItem(slotKind(slotId), slot.itemId, selectedJobType),
+                starForceEstimateSettings
+            );
+
+            return {
+                mesoSpent: totals.mesoSpent + slot.mesoSpent,
+                destructionCount:
+                    totals.destructionCount + slot.destructionCount,
+                estimatedMeso: totals.estimatedMeso + estimate.meso,
+                estimatedDestructions:
+                    totals.estimatedDestructions + estimate.destructions,
+            };
+        },
+        {
+            mesoSpent: 0,
+            destructionCount: 0,
+            estimatedMeso: 0,
+            estimatedDestructions: 0,
+        }
     );
 
 const formatGeneralPotentialPercent = (stats: PotentialStatTotals) =>
@@ -1328,6 +1798,17 @@ const applyJobDefaultsToFlameSettings = (
 const isRecord = (value: unknown): value is Record<string, unknown> =>
     typeof value === "object" && value !== null;
 
+const normalizeStarForceEstimateSettings = (
+    rawSettings: unknown
+): StarForceEstimateSettings => {
+    const settings = isRecord(rawSettings) ? rawSettings : {};
+
+    return {
+        isShiningStarForce: settings.isShiningStarForce === true,
+        useSafeguard: settings.useSafeguard === true,
+    };
+};
+
 const isJobType = (value: unknown): value is JobType =>
     typeof value === "string" && JOB_TYPES.includes(value as JobType);
 
@@ -1648,6 +2129,7 @@ const createEmptySlot = (
         itemLevel: item?.level || 0,
         itemSetType: item?.setType || "none",
         stars: 0,
+        targetStars: 0,
         mesoSpent: 0,
         destructionCount: 0,
         potential: emptyPotential(),
@@ -1668,6 +2150,7 @@ const createInitialPresetState = (
 ): EquipmentPresetState => ({
     selectedJobType: jobType,
     flameScoreSettings: normalizeFlameScoreSettings(undefined, jobType),
+    starForceEstimateSettings: DEFAULT_STAR_FORCE_ESTIMATE_SETTINGS,
     selectedSlotId: null,
     equipmentState: createInitialState(jobType),
 });
@@ -1879,6 +2362,15 @@ const normalizeEquipmentState = (
                         0,
                         starForceCap
                     ),
+                    targetStars: clampNumber(
+                        Math.trunc(
+                            Number(
+                                storedSlot.targetStars ?? fallbackSlot.targetStars
+                            ) || 0
+                        ),
+                        0,
+                        starForceCap
+                    ),
                     mesoSpent: normalizeCounterValue(
                         storedSlot.mesoSpent ?? fallbackSlot.mesoSpent
                     ),
@@ -1928,6 +2420,9 @@ const normalizeEquipmentPresetState = (
     return {
         selectedJobType,
         flameScoreSettings,
+        starForceEstimateSettings: normalizeStarForceEstimateSettings(
+            parsedPreset.starForceEstimateSettings
+        ),
         selectedSlotId: isEquipSlotId(parsedPreset.selectedSlotId)
             ? parsedPreset.selectedSlotId
             : null,
@@ -2012,6 +2507,7 @@ const loadStoredPresets = (
         "preset-1": {
             selectedJobType: jobType,
             flameScoreSettings,
+            starForceEstimateSettings: DEFAULT_STAR_FORCE_ESTIMATE_SETTINGS,
             selectedSlotId: null,
             equipmentState: loadStoredState(jobType),
         },
@@ -2033,6 +2529,7 @@ const createEquipmentSetupClipboardText = (
     jobType: JobType,
     selectedSlotId: EquipSlotId | null,
     flameScoreSettings: FlameScoreSettings,
+    starForceEstimateSettings: StarForceEstimateSettings,
     equipmentState: Record<EquipSlotId, EquipmentSlotState>
 ) =>
     JSON.stringify(
@@ -2042,6 +2539,7 @@ const createEquipmentSetupClipboardText = (
             jobType,
             selectedSlotId,
             flameScoreSettings,
+            starForceEstimateSettings,
             equipmentState,
         } satisfies EquipmentSetupClipboardPayload,
         null,
@@ -2074,6 +2572,9 @@ const parseEquipmentSetupClipboardText = (text: string) => {
                   >)
                 : undefined,
             jobType
+        ),
+        starForceEstimateSettings: normalizeStarForceEstimateSettings(
+            parsed.starForceEstimateSettings
         ),
         equipmentState: normalizeEquipmentState(jobType, parsed.equipmentState),
     };
@@ -2163,6 +2664,7 @@ function EquipmentSetup() {
         createInitialPresetState(DEFAULT_JOB_TYPE);
     const selectedJobType = activePreset.selectedJobType;
     const flameScoreSettings = activePreset.flameScoreSettings;
+    const starForceEstimateSettings = activePreset.starForceEstimateSettings;
     const equipmentState = activePreset.equipmentState;
     const selectedSlotId = activePreset.selectedSlotId;
     const selectedSlot = selectedSlotId
@@ -2184,8 +2686,24 @@ function EquipmentSetup() {
         [equipmentState, selectedJobType]
     );
     const enhancementTotals = React.useMemo(
-        () => calculateEnhancementTotals(equipmentState),
-        [equipmentState]
+        () =>
+            calculateEnhancementTotals(
+                equipmentState,
+                selectedJobType,
+                starForceEstimateSettings
+            ),
+        [equipmentState, selectedJobType, starForceEstimateSettings]
+    );
+    const selectedStarForceEstimate = React.useMemo(
+        () =>
+            selectedSlot
+                ? calculateSlotStarForceEstimate(
+                      selectedSlot,
+                      selectedCatalogItem,
+                      starForceEstimateSettings
+                  )
+                : EMPTY_STAR_FORCE_ESTIMATE,
+        [selectedSlot, selectedCatalogItem, starForceEstimateSettings]
     );
 
     const updateJobType = (jobType: JobType) => {
@@ -2219,6 +2737,18 @@ function EquipmentSetup() {
                 typeof nextSettings === "function"
                     ? nextSettings(preset.flameScoreSettings)
                     : nextSettings,
+        }));
+    };
+
+    const updateStarForceEstimateSettings = (
+        patch: Partial<StarForceEstimateSettings>
+    ) => {
+        updateActivePreset((preset) => ({
+            ...preset,
+            starForceEstimateSettings: {
+                ...preset.starForceEstimateSettings,
+                ...patch,
+            },
         }));
     };
 
@@ -2257,24 +2787,23 @@ function EquipmentSetup() {
             return;
         }
 
+        const starForceCap = getSlotStarForceCap(
+            {
+                itemName: item.name,
+                itemLevel: item.level,
+                itemSetType: item.setType,
+            },
+            item
+        );
+
         updateSelectedSlot({
             itemId: item.id,
             itemName: item.name,
             itemImage: item.imgPath,
             itemLevel: item.level,
             itemSetType: item.setType,
-            stars: clampNumber(
-                selectedSlot.stars,
-                0,
-                getSlotStarForceCap(
-                    {
-                        itemName: item.name,
-                        itemLevel: item.level,
-                        itemSetType: item.setType,
-                    },
-                    item
-                )
-            ),
+            stars: clampNumber(selectedSlot.stars, 0, starForceCap),
+            targetStars: clampNumber(selectedSlot.targetStars, 0, starForceCap),
         });
     };
 
@@ -2332,6 +2861,7 @@ function EquipmentSetup() {
                     selectedJobType,
                     selectedSlotId,
                     flameScoreSettings,
+                    starForceEstimateSettings,
                     equipmentState
                 )
             );
@@ -2352,6 +2882,8 @@ function EquipmentSetup() {
                 [activePresetId]: {
                     selectedJobType: importedSetup.jobType,
                     flameScoreSettings: importedSetup.flameScoreSettings,
+                    starForceEstimateSettings:
+                        importedSetup.starForceEstimateSettings,
                     selectedSlotId: importedSetup.selectedSlotId,
                     equipmentState: importedSetup.equipmentState,
                 },
@@ -2367,7 +2899,9 @@ function EquipmentSetup() {
             <PresetTabsPanel
                 activePresetId={activePresetId}
                 enhancementTotals={enhancementTotals}
+                starForceEstimateSettings={starForceEstimateSettings}
                 onChange={setActivePresetId}
+                onEstimateSettingsChange={updateStarForceEstimateSettings}
             />
 
             <JobTypeSelector
@@ -2403,6 +2937,8 @@ function EquipmentSetup() {
                         selectedKind={selectedKind}
                         selectedSlot={selectedSlot}
                         selectedSlotId={selectedSlotId}
+                        starForceEstimate={selectedStarForceEstimate}
+                        starForceEstimateSettings={starForceEstimateSettings}
                         flameScoreSettings={flameScoreSettings}
                         onFlameScoreSettingsChange={updateFlameScoreSettings}
                         onFlameLineChange={updateFlameLine}
@@ -2423,11 +2959,17 @@ function EquipmentSetup() {
 function PresetTabsPanel({
     activePresetId,
     enhancementTotals,
+    starForceEstimateSettings,
     onChange,
+    onEstimateSettingsChange,
 }: Readonly<{
     activePresetId: EquipmentPresetId;
     enhancementTotals: EnhancementTotals;
+    starForceEstimateSettings: StarForceEstimateSettings;
     onChange: (presetId: EquipmentPresetId) => void;
+    onEstimateSettingsChange: (
+        patch: Partial<StarForceEstimateSettings>
+    ) => void;
 }>) {
     return (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-slate-700 bg-slate-900/80 p-2 text-sm">
@@ -2458,6 +3000,32 @@ function PresetTabsPanel({
                 })}
             </div>
             <div className="ml-auto flex flex-wrap items-center justify-end gap-2 text-xs">
+                <label className="flex h-8 items-center gap-2 rounded-md border border-emerald-500/40 bg-slate-950 px-3 text-emerald-100">
+                    <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-emerald-400"
+                        checked={starForceEstimateSettings.isShiningStarForce}
+                        onChange={(event) =>
+                            onEstimateSettingsChange({
+                                isShiningStarForce: event.target.checked,
+                            })
+                        }
+                    />
+                    SSF
+                </label>
+                <label className="flex h-8 items-center gap-2 rounded-md border border-sky-500/40 bg-slate-950 px-3 text-sky-100">
+                    <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-sky-400"
+                        checked={starForceEstimateSettings.useSafeguard}
+                        onChange={(event) =>
+                            onEstimateSettingsChange({
+                                useSafeguard: event.target.checked,
+                            })
+                        }
+                    />
+                    Safeguard
+                </label>
                 <span className="rounded-md border border-slate-700 bg-slate-950 px-3 py-1.5 text-slate-300">
                     Meso spent{" "}
                     <strong className="ml-1 text-white">
@@ -2468,6 +3036,20 @@ function PresetTabsPanel({
                     <TrashIndicatorIcon />
                     <strong className="text-white">
                         {formatInteger(enhancementTotals.destructionCount)}
+                    </strong>
+                </span>
+                <span className="rounded-md border border-emerald-500/40 bg-slate-950 px-3 py-1.5 text-emerald-100">
+                    Need{" "}
+                    <strong className="ml-1 text-white">
+                        {formatInteger(enhancementTotals.estimatedMeso)}
+                    </strong>
+                </span>
+                <span className="flex items-center gap-1 rounded-md border border-red-500/40 bg-slate-950 px-3 py-1.5 text-red-100">
+                    <TrashIndicatorIcon />
+                    <strong className="text-white">
+                        {formatExpectedCount(
+                            enhancementTotals.estimatedDestructions
+                        )}
                     </strong>
                 </span>
             </div>
@@ -2638,6 +3220,12 @@ function EquipmentGridSlot({
         0,
         getSlotStarForceCap(slot, catalogItem)
     );
+    const targetStarValue = clampNumber(
+        slot.targetStars,
+        0,
+        getSlotStarForceCap(slot, catalogItem)
+    );
+    const hasStarTarget = targetStarValue > starValue;
     const potentialStats = calculateSlotPotentialStats(
         slot,
         flameScoreSettings,
@@ -2676,9 +3264,19 @@ function EquipmentGridSlot({
                 alt=""
                 className="h-[76%] w-[76%] object-contain [image-rendering:pixelated]"
             />
-            {starValue > 0 || slot.destructionCount > 0 ? (
+            {starValue > 0 || hasStarTarget || slot.destructionCount > 0 ? (
                 <span className="pointer-events-none absolute right-[3cqw] top-[3cqw] flex flex-col items-end gap-[1.25cqw]">
-                    {starValue > 0 ? (
+                    {hasStarTarget ? (
+                        <span
+                            className="relative rounded-sm bg-black/80 px-[0.35em] text-[clamp(12px,18cqw,20px)] font-bold leading-[1.25] text-yellow-200"
+                            title="Target Star Force"
+                        >
+                            ★{starValue}
+                            <span className="absolute -top-[0.92em] right-[0.1em] rounded-sm bg-black/85 px-[0.2em] text-[0.7em] leading-none text-emerald-200">
+                                {targetStarValue}
+                            </span>
+                        </span>
+                    ) : starValue > 0 ? (
                         <span className="rounded-sm bg-black/75 px-[0.35em] text-[clamp(12px,18cqw,20px)] font-bold leading-[1.25] text-yellow-200">
                             ★{starValue}
                         </span>
@@ -2729,6 +3327,8 @@ function SelectedEquipmentPanel({
     selectedKind,
     selectedSlot,
     selectedSlotId,
+    starForceEstimate,
+    starForceEstimateSettings,
     flameScoreSettings,
     onFlameScoreSettingsChange,
     onFlameLineChange,
@@ -2744,6 +3344,8 @@ function SelectedEquipmentPanel({
     selectedKind: EquipKind;
     selectedSlot: EquipmentSlotState;
     selectedSlotId: EquipSlotId;
+    starForceEstimate: StarForceEstimate;
+    starForceEstimateSettings: StarForceEstimateSettings;
     flameScoreSettings: FlameScoreSettings;
     onFlameScoreSettingsChange: React.Dispatch<
         React.SetStateAction<FlameScoreSettings>
@@ -2764,6 +3366,11 @@ function SelectedEquipmentPanel({
         selectedCatalogItem
     );
     const starValue = clampNumber(selectedSlot.stars, 0, starForceCap);
+    const targetStarValue = clampNumber(
+        selectedSlot.targetStars,
+        0,
+        starForceCap
+    );
 
     return (
         <div className="min-w-0 rounded-md border border-slate-600 bg-slate-800/60 p-3">
@@ -2826,32 +3433,96 @@ function SelectedEquipmentPanel({
                         >
                             0
                         </button>
-                        <input
-                            type="number"
-                            min={0}
-                            max={starForceCap}
-                            value={starValue}
-                            onChange={(event) =>
-                                onSlotChange({
-                                    stars: clampNumber(
-                                        Math.trunc(
-                                            Number(event.target.value) || 0
+                        <label className="grid gap-1 text-[10px] uppercase leading-none text-slate-400">
+                            Current
+                            <input
+                                type="number"
+                                min={0}
+                                max={starForceCap}
+                                value={starValue}
+                                onChange={(event) =>
+                                    onSlotChange({
+                                        stars: clampNumber(
+                                            Math.trunc(
+                                                Number(event.target.value) || 0
+                                            ),
+                                            0,
+                                            starForceCap
                                         ),
-                                        0,
-                                        starForceCap
-                                    ),
-                                })
-                            }
-                            className="w-20 rounded-md border border-slate-600 bg-slate-950 px-2 py-1 text-right text-yellow-200 outline-none focus:border-primary"
-                            aria-label="Star Force value"
-                        />
+                                    })
+                                }
+                                className="w-20 rounded-md border border-slate-600 bg-slate-950 px-2 py-1 text-right text-sm text-yellow-200 outline-none focus:border-primary"
+                                aria-label="Star Force value"
+                            />
+                        </label>
+                        <label className="grid gap-1 text-[10px] uppercase leading-none text-emerald-200">
+                            Target
+                            <input
+                                type="number"
+                                min={0}
+                                max={starForceCap}
+                                value={targetStarValue}
+                                onChange={(event) =>
+                                    onSlotChange({
+                                        targetStars: clampNumber(
+                                            Math.trunc(
+                                                Number(event.target.value) || 0
+                                            ),
+                                            0,
+                                            starForceCap
+                                        ),
+                                    })
+                                }
+                                className="w-20 rounded-md border border-emerald-500/60 bg-slate-950 px-2 py-1 text-right text-sm text-emerald-200 outline-none focus:border-emerald-300"
+                                aria-label="Target Star Force value"
+                            />
+                        </label>
                     </div>
                 </div>
                 <StarForceSelector
                     value={starValue}
+                    targetValue={targetStarValue}
                     maxStars={starForceCap}
                     onChange={(stars) => onSlotChange({ stars })}
+                    onTargetChange={(targetStars) =>
+                        onSlotChange({ targetStars })
+                    }
                 />
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                    <StarForceEstimateMetric
+                        label="Target"
+                        value={
+                            starForceEstimate.isActive
+                                ? `${starForceEstimate.currentStars} -> ${starForceEstimate.targetStars}`
+                                : "-"
+                        }
+                        isActive={starForceEstimate.isActive}
+                    />
+                    <StarForceEstimateMetric
+                        label="Need mesos"
+                        value={formatInteger(starForceEstimate.meso)}
+                        isActive={starForceEstimate.isActive}
+                    />
+                    <StarForceEstimateMetric
+                        label="Expected breaks"
+                        value={formatExpectedCount(
+                            starForceEstimate.destructions
+                        )}
+                        isActive={starForceEstimate.isActive}
+                    />
+                </div>
+                <div className="mt-2 flex flex-wrap justify-end gap-2 text-[11px] text-slate-400">
+                    {starForceEstimateSettings.isShiningStarForce ? (
+                        <span className="rounded bg-emerald-500/15 px-2 py-1 text-emerald-100">
+                            SSF
+                        </span>
+                    ) : null}
+                    {starForceEstimateSettings.useSafeguard ? (
+                        <span className="rounded bg-sky-500/15 px-2 py-1 text-sky-100">
+                            Safeguard
+                        </span>
+                    ) : null}
+                </div>
             </section>
 
             <div className="grid gap-4 lg:grid-cols-2">
@@ -3440,21 +4111,56 @@ function SetEffectTooltip({
     );
 }
 
+function StarForceEstimateMetric({
+    label,
+    value,
+    isActive = true,
+}: Readonly<{
+    label: string;
+    value: string;
+    isActive?: boolean;
+}>) {
+    return (
+        <div className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2">
+            <div className="text-[10px] font-semibold uppercase leading-none text-slate-500">
+                {label}
+            </div>
+            <div
+                className={`mt-1 text-right text-sm font-bold tabular-nums ${
+                    isActive ? "text-white" : "text-slate-500"
+                }`}
+            >
+                {value}
+            </div>
+        </div>
+    );
+}
+
 function StarForceSelector({
     value,
+    targetValue,
     maxStars,
     onChange,
+    onTargetChange,
 }: Readonly<{
     value: number;
+    targetValue: number;
     maxStars: number;
     onChange: (value: number) => void;
+    onTargetChange: (value: number) => void;
 }>) {
     const rootRef = React.useRef<HTMLDivElement>(null);
-    const isDraggingRef = React.useRef(false);
+    const dragModeRef = React.useRef<"current" | "target" | null>(null);
     const normalizedMaxStars = clampNumber(
         Math.trunc(Number(maxStars) || 0),
         0,
         MAX_STAR_FORCE
+    );
+    const normalizedValue = clampNumber(value, 0, normalizedMaxStars);
+    const normalizedTargetValue = clampNumber(
+        targetValue,
+        0,
+        normalizedMaxStars
     );
     const rowCount = Math.ceil(normalizedMaxStars / STAR_ROW_SIZE);
 
@@ -3484,20 +4190,27 @@ function StarForceSelector({
     );
 
     const updateFromPointer = React.useCallback(
-        (event: React.PointerEvent<HTMLDivElement>) => {
+        (
+            event: React.PointerEvent<HTMLDivElement>,
+            mode: "current" | "target"
+        ) => {
             const nextValue = getStarValueFromPoint(
                 event.clientX,
                 event.clientY
             );
             if (nextValue !== undefined) {
-                onChange(nextValue);
+                if (mode === "target") {
+                    onTargetChange(nextValue);
+                } else {
+                    onChange(nextValue);
+                }
             }
         },
-        [getStarValueFromPoint, onChange]
+        [getStarValueFromPoint, onChange, onTargetChange]
     );
 
     const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-        if (event.button !== 0) {
+        if (event.button !== 0 && event.button !== 2) {
             return;
         }
 
@@ -3506,31 +4219,37 @@ function StarForceSelector({
             return;
         }
 
-        isDraggingRef.current = true;
+        const mode = event.button === 2 ? "target" : "current";
+        dragModeRef.current = mode;
         event.currentTarget.setPointerCapture(event.pointerId);
         event.preventDefault();
-        onChange(nextValue);
+        if (mode === "target") {
+            onTargetChange(nextValue);
+        } else {
+            onChange(nextValue);
+        }
     };
 
     const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
-        if (!isDraggingRef.current) {
+        if (!dragModeRef.current) {
             return;
         }
 
         event.preventDefault();
-        updateFromPointer(event);
+        updateFromPointer(event, dragModeRef.current);
     };
 
     const stopDragging = (event: React.PointerEvent<HTMLDivElement>) => {
-        if (!isDraggingRef.current) {
+        if (!dragModeRef.current) {
             return;
         }
 
-        isDraggingRef.current = false;
+        const mode = dragModeRef.current;
+        dragModeRef.current = null;
         if (event.currentTarget.hasPointerCapture(event.pointerId)) {
             event.currentTarget.releasePointerCapture(event.pointerId);
         }
-        updateFromPointer(event);
+        updateFromPointer(event, mode);
     };
 
     return (
@@ -3541,6 +4260,7 @@ function StarForceSelector({
             onPointerMove={handlePointerMove}
             onPointerUp={stopDragging}
             onPointerCancel={stopDragging}
+            onContextMenu={(event) => event.preventDefault()}
             role="group"
             aria-label="Star Force stars"
         >
@@ -3576,7 +4296,10 @@ function StarForceSelector({
                                                 const starValue =
                                                     groupStart + starIndex;
                                                 const isFilled =
-                                                    starValue <= value;
+                                                    starValue <= normalizedValue;
+                                                const isTargeted =
+                                                    starValue <=
+                                                    normalizedTargetValue;
 
                                                 return (
                                                     <button
@@ -3584,7 +4307,9 @@ function StarForceSelector({
                                                         className={`h-7 w-6 rounded-sm text-xl leading-7 transition-colors ${
                                                             isFilled
                                                                 ? "text-yellow-300"
-                                                                : "text-slate-600 hover:text-yellow-100"
+                                                                : isTargeted
+                                                                  ? "text-emerald-200 hover:text-emerald-100"
+                                                                  : "text-slate-600 hover:text-yellow-100"
                                                         }`}
                                                         data-star-value={
                                                             starValue
@@ -3594,9 +4319,19 @@ function StarForceSelector({
                                                         onClick={() =>
                                                             onChange(starValue)
                                                         }
+                                                        onContextMenu={(
+                                                            event
+                                                        ) => {
+                                                            event.preventDefault();
+                                                            onTargetChange(
+                                                                starValue
+                                                            );
+                                                        }}
                                                         key={starValue}
                                                     >
-                                                        {isFilled ? "★" : "☆"}
+                                                        {isFilled || isTargeted
+                                                            ? "★"
+                                                            : "☆"}
                                                     </button>
                                                 );
                                             }
