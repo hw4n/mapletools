@@ -794,6 +794,9 @@ const formatExpectedCount = (value: number) => {
     return value.toFixed(2);
 };
 
+const formatExpectedSpareCount = (value: number) =>
+    value <= 0 ? "0" : formatInteger(Math.ceil(value));
+
 const formatScore = (value: number) =>
     Number.isInteger(value) ? formatInteger(value) : value.toFixed(1);
 
@@ -3538,6 +3541,7 @@ function EquipmentSetup() {
                         flameScoreSettings={flameScoreSettings}
                         selectedJobType={selectedJobType}
                         selectedSlotId={selectedSlotId}
+                        starForceEstimateSettings={starForceEstimateSettings}
                         onSelectSlot={selectSlot}
                     />
                     {selectedSlot ? (
@@ -3693,12 +3697,14 @@ function EquipmentGridPanel({
     flameScoreSettings,
     selectedJobType,
     selectedSlotId,
+    starForceEstimateSettings,
     onSelectSlot,
 }: Readonly<{
     equipmentState: Record<EquipSlotId, EquipmentSlotState>;
     flameScoreSettings: FlameScoreSettings;
     selectedJobType: JobType;
     selectedSlotId: EquipSlotId | null;
+    starForceEstimateSettings: StarForceEstimateSettings;
     onSelectSlot: (slotId: EquipSlotId) => void;
 }>) {
     return (
@@ -3725,6 +3731,9 @@ function EquipmentGridPanel({
                                     isSelected={slotId === selectedSlotId}
                                     selectedJobType={selectedJobType}
                                     slotId={slotId}
+                                    starForceEstimateSettings={
+                                        starForceEstimateSettings
+                                    }
                                     onSelect={onSelectSlot}
                                 />
                             </div>
@@ -3830,6 +3839,7 @@ function EquipmentGridSlot({
     isSelected,
     selectedJobType,
     slotId,
+    starForceEstimateSettings,
     onSelect,
 }: Readonly<{
     equipmentState: Record<EquipSlotId, EquipmentSlotState>;
@@ -3837,6 +3847,7 @@ function EquipmentGridSlot({
     isSelected: boolean;
     selectedJobType: JobType;
     slotId: EquipSlotId;
+    starForceEstimateSettings: StarForceEstimateSettings;
     onSelect: (slotId: EquipSlotId) => void;
 }>) {
     const slot = equipmentState[slotId];
@@ -3877,6 +3888,13 @@ function EquipmentGridSlot({
         flameScoreSettings,
         catalogItem
     );
+    const starForceEstimate = calculateSlotStarForceEstimate(
+        slot,
+        catalogItem,
+        starForceEstimateSettings
+    );
+    const expectedSpareCount = Math.ceil(starForceEstimate.destructions);
+    const hasSpareTarget = starForceEstimate.isActive && expectedSpareCount > 0;
     const flameScoreTone =
         flameScore > 0 ? getFlameScoreIndicatorTone(flameScore) : undefined;
 
@@ -3897,7 +3915,10 @@ function EquipmentGridSlot({
                 alt=""
                 className="h-[76%] w-[76%] object-contain [image-rendering:pixelated]"
             />
-            {starValue > 0 || hasStarTarget || slot.destructionCount > 0 ? (
+            {starValue > 0 ||
+            hasStarTarget ||
+            slot.destructionCount > 0 ||
+            hasSpareTarget ? (
                 <span className="pointer-events-none absolute right-[3cqw] top-[3cqw] flex flex-col items-end gap-[1.25cqw]">
                     {hasStarTarget ? (
                         <span
@@ -3914,13 +3935,19 @@ function EquipmentGridSlot({
                             ★{starValue}
                         </span>
                     ) : null}
-                    {slot.destructionCount > 0 ? (
+                    {slot.destructionCount > 0 || hasSpareTarget ? (
                         <span
                             className="flex items-center gap-[0.15em] rounded-sm bg-red-700/90 px-[0.35em] text-[clamp(11px,16cqw,18px)] font-bold leading-[1.25] text-red-100"
                             title="Destructions"
                         >
                             <TrashIndicatorIcon />
-                            {slot.destructionCount}
+                            {hasSpareTarget
+                                ? `${formatInteger(
+                                      slot.destructionCount
+                                  )}/${formatExpectedSpareCount(
+                                      starForceEstimate.destructions
+                                  )}`
+                                : formatInteger(slot.destructionCount)}
                         </span>
                     ) : null}
                 </span>
