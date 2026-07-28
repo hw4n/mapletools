@@ -68,14 +68,16 @@ const symbolReducer = (state: SymbolInfo, action: SymbolAction) => {
             return { ...state, symbolRemaining: action.payload };
         case "setSymbolMaxCost":
             return { ...state, symbolMaxCost: action.payload };
-        case "setSymbolLevel":
+        case "setSymbolLevel": {
             const newStateWithLevel = [...state.symbolInput];
             newStateWithLevel[action.payload.i][0] = action.payload.level;
             return { ...state, symbolInput: newStateWithLevel };
-        case "setSymbolEquip":
+        }
+        case "setSymbolEquip": {
             const newStateWithEquip = [...state.symbolInput];
             newStateWithEquip[action.payload.i][1] = action.payload.equip;
             return { ...state, symbolInput: newStateWithEquip };
+        }
         case "readFromLocalStorage":
             return action.payload;
         default:

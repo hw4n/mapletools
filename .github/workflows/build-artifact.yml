@@ -38,6 +38,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Audit dependencies
+        run: pnpm audit
+
       - name: Lint application
         run: pnpm lint
 
@@ -48,24 +51,24 @@ jobs:
 
       - name: Collect build artifact
         run: |
-          mkdir -p dist-artifacts/next-build
-          cp -R .next dist-artifacts/next-build/.next
-          rm -rf dist-artifacts/next-build/.next/cache
+          mkdir -p dist-artifacts
+          cp -R .next dist-artifacts/.next
+          rm -rf dist-artifacts/.next/cache
           if [ -d public ]; then
-            cp -R public dist-artifacts/next-build/public
+            cp -R public dist-artifacts/public
           fi
-          cp package.json pnpm-lock.yaml dist-artifacts/next-build/
+          cp package.json pnpm-lock.yaml dist-artifacts/
           shopt -s nullglob
           for config in next.config.*; do
-            cp "$config" dist-artifacts/next-build/
+            cp "$config" dist-artifacts/
           done
           shopt -u nullglob
-          tar -C dist-artifacts/next-build -czf dist-artifacts/next-build.tar.gz .
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: next-build
-          path: dist-artifacts/next-build.tar.gz
+          path: dist-artifacts/
           if-no-files-found: error
+          include-hidden-files: true
           retention-days: 7
